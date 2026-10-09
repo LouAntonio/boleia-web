@@ -1,0 +1,50 @@
+name: CI
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
+# Uma pipeline por branch. Sem isto, push seguido de pull request para a mesma
+# `main` corre a mesma cadeia duas vezes — e é a segunda que interessa.
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            # Node 22, como o backend. O painel `adm` ainda está em 20; as três
+            # aplicações vão alinhar-se quando ele subir.
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '22'
+                  cache: 'npm'
+
+            - run: npm ci
+
+            - name: Lint
+              run: npm run lint:check
+
+            - name: Format check
+              run: npm run format:check
+
+            - name: Typecheck
+              run: npm run typecheck
+
+            # O `VITE_API_URL` é lido em tempo de compilação, não em tempo de
+            # execução: o Vite substitui a constante dentro do bundle. Sem esta
+            # variável, o `dist/` que a CI produz fica apontado ao `localhost:3000` de
+            # quem a construiu — e o build passa à mesma, porque o TypeScript não vê
+            # o valor de `import.meta.env`.
+            #
+            # O valor é o de produção e não um segredo: é o endereço público da API.
+            - name: Build
+              run: npm run build
+              env:
+                  VITE_API_URL: https://api.boleia.ao

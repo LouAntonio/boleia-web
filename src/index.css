@@ -1,0 +1,345 @@
+@import 'tailwindcss';
+
+/*
+ * Boleia — tokens de cor.
+ *
+ * Estes valores NÃO são uma escolha do design web: são a mesma paleta de
+ * `mobile/src/store/colors.ts`, token por token, para que o site, a app web e o
+ * telemóvel sejam reconhecidamente o mesmo produto. Se um valor mudar aqui, muda
+ * também lá — não vale a pena ter três fontes de verdade para a mesma cor.
+ *
+ * Só os nomes mudaram, porque CSS e Tailwind não distinguishem `text-ink`
+ * (cor) de `text-h2` (tamanho) quando ambos se chamam `text`. A correspondência:
+ *
+ *   mobile/src/store/colors.ts      aqui
+ *   -------------------------      ---------------------------
+ *   background              →      --color-canvas
+ *   card                    →      --color-surface
+ *   text                    →      --color-ink
+ *   secondary               →      --color-muted
+ *   border                  →      --color-line
+ *   primary                 →      --color-brand
+ *   accentWeak              →      --color-brand-soft
+ *   onPrimary               →      --color-brand-ink
+ *   success / successWeak   →      --color-ok / --color-ok-soft
+ *   onSuccess               →      --color-ok-ink
+ *   laterite                →      --color-warn
+ *   onWarning               →      --color-on-warn
+ *   caution / cautionText   →      --color-caution / --color-caution-ink
+ *   error / dangerWeak      →      --color-alert / --color-alert-soft
+ *
+ * `--color-mark` (o amarelo do logótipo) e `--color-void` (o preto do logótipo)
+ * não vêm de `colors.ts`: vêm dos ficheiros de marca em
+ * `mobile/assets/images/`. Só entram na landing, onde a marca aparece em
+ * grande e o amarelo tem de ser o do logótipo e não o `caution` do produto.
+ *
+ * `--brand-text` é o único token que não existe no telemóvel, e a razão está
+ * escrita em `--brand-text` lá em baixo: o azul da marca, posto sobre o azul
+ * claro, dá 4.05:1 e não chega aos 4.5:1 que o WCAG pede a texto normal.
+ */
+
+@theme inline {
+	--color-canvas: var(--canvas);
+	--color-surface: var(--surface);
+	--color-ink: var(--ink);
+	--color-muted: var(--muted);
+	--color-line: var(--line);
+	--color-brand: var(--brand);
+	--color-brand-text: var(--brand-text);
+	--color-brand-soft: var(--brand-soft);
+	--color-brand-ink: var(--brand-ink);
+	--color-ok: var(--ok);
+	--color-ok-soft: var(--ok-soft);
+	--color-ok-ink: var(--ok-ink);
+	--color-warn: var(--warn);
+	--color-on-warn: var(--on-warn);
+	--color-caution: var(--caution);
+	--color-caution-ink: var(--caution-ink);
+	--color-alert: var(--alert);
+	--color-alert-soft: var(--alert-soft);
+	--color-mark: var(--mark);
+	--color-void: var(--void);
+
+	/*
+	 * Hanken Grotesk, a mesma família do telemóvel e do painel. Uma só família
+	 * em toda a plataforma: o site, a app e o painel são o mesmo produto visto
+	 * em três sítios, e duas famílias fazem-nos parecer três produtos.
+	 *
+	 * JetBrains Mono entra só em dados — hora de paragem, preço, matrícula.
+	 * Nunca em texto corrido. Serve para uma coluna de números alinhar sem
+	 * estar a fingir que é uma interface de terminal.
+	 */
+	--font-display: 'Hanken Grotesk', sans-serif;
+	--font-body: 'Hanken Grotesk', sans-serif;
+	--font-mono: 'JetBrains Mono', monospace;
+
+	/*
+	 * A escala do telemóvel estendida para ecrã largo. O telemóvel vai até
+	 * 28px; uma hero institucional precisa de-ar para a frase respirar sem
+	 * encolher o resto da hierarquia.
+	 */
+	--text-display: 4rem;
+	--text-display--line-height: 4.25rem;
+	--text-display--letter-spacing: -0.03em;
+	--text-display--font-weight: 800;
+
+	--text-h2: 2.5rem;
+	--text-h2--line-height: 2.75rem;
+	--text-h2--letter-spacing: -0.02em;
+	--text-h2--font-weight: 800;
+
+	--text-h3: 1.375rem;
+	--text-h3--line-height: 1.625rem;
+	--text-h3--font-weight: 700;
+
+	--text-label: 1rem;
+	--text-label--line-height: 1.25rem;
+	--text-label--font-weight: 500;
+
+	--text-body: 1rem;
+	--text-body--line-height: 1.5rem;
+
+	--text-small: 0.875rem;
+	--text-small--line-height: 1.25rem;
+
+	--text-data: 0.8125rem;
+	--text-data--line-height: 1.125rem;
+
+	/* Raios do telemóvel (`src/store/type.ts`). */
+	--radius-sm: 0.5rem;
+	--radius-md: 0.75rem;
+	--radius-lg: 1rem;
+	--radius-full: 999px;
+
+	--shadow-card: 0 1px 3px 0 rgb(0 22 54 / 0.04);
+	--shadow-lift: 0 8px 24px -8px rgb(0 22 54 / 0.16);
+
+	--ease-road: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:root {
+	--canvas: #f5f7fb;
+	--surface: #ffffff;
+	--ink: #001536;
+	--muted: #576680;
+	--line: #e9ecf0;
+	--brand: #0071eb;
+	/*
+	 * O azul da marca posto sobre o azul claro dá 4.05:1 — e isso é o que
+	 * acontece ao `StatusStamp` activo, às iniciais do avatar e à hora de uma
+	 * paragem na estrada. `--brand` é a cor de fundo de uma banda, não uma cor
+	 * de texto.
+	 *
+	 * Este é o tom mais claro que ainda passa 4.5:1 sobre `#E6F2FE`, e dá
+	 * 6.5:1 sobre branco. Ou seja: é azul Boleia, não é um azul novo.
+	 */
+	--brand-text: #0069d2;
+	--brand-soft: #e6f2fe;
+	--brand-ink: #ffffff;
+	--ok: #107046;
+	--ok-soft: #c5ffc6;
+	--ok-ink: #ffffff;
+	--warn: #b84412;
+	--on-warn: #ffffff;
+	--caution: #ffcc56;
+	--caution-ink: #3f2206;
+	--alert: #ba303b;
+	--alert-soft: #fbe9ea;
+	--mark: #facd00;
+	--void: #121212;
+
+	color-scheme: light;
+}
+
+/*
+ * Tema escuro por classe no `<html>`, e não por `prefers-color-scheme`: o
+ * utilizador escolhe no perfil, e essa escolha tem de sobreviver a um
+ * sistema operativo claro com a app fechada.
+ */
+.dark {
+	--canvas: #171b20;
+	--surface: #25282b;
+	--ink: #f1f6ff;
+	--muted: #9ba6ba;
+	--line: #2f3339;
+	--brand: #47a0ff;
+	/*
+	 * No tema escuro o tom já passa: `#47A0FF` sobre `#26303A` dá 4.94:1. Não
+	 * há um tom separado — apontá-lo para o próprio `--brand` deixa claro que
+	 * aqui a correção não se aplica, em vez de fixar um valor que amanhã deixa
+	 * de bater certo se `--brand` mudar.
+	 */
+	--brand-text: var(--brand);
+	--brand-soft: #26303a;
+	--brand-ink: #001536;
+	--ok: #1fda82;
+	--ok-soft: #123528;
+	--ok-ink: #001536;
+	--warn: #ff993a;
+	--on-warn: #3f2206;
+	--caution: #99640f;
+	--caution-ink: #f1f6ff;
+	--alert: #ff8a93;
+	--alert-soft: #3a1618;
+
+	color-scheme: dark;
+}
+
+@layer base {
+	* {
+		border-color: var(--line);
+	}
+
+	html {
+		scroll-behavior: smooth;
+	}
+
+	/*
+	 * Deslizar a página até à secção do link não deve espremer a coluna de
+	 * cabeçalho contra o topo do documento.
+	 */
+	:target {
+		scroll-margin-top: 6rem;
+	}
+
+	*:focus-visible {
+		outline: 2px solid var(--brand);
+		outline-offset: 2px;
+		border-radius: 2px;
+	}
+
+	body {
+		font-family: var(--font-body);
+		background-color: var(--canvas);
+		color: var(--ink);
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+
+	h1,
+	h2,
+	h3 {
+		font-family: var(--font-display);
+	}
+
+	code,
+	kbd,
+	.font-mono {
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+	}
+
+	::selection {
+		background: var(--brand);
+		color: var(--brand-ink);
+	}
+
+	::-webkit-scrollbar {
+		width: 10px;
+		height: 10px;
+	}
+	::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	::-webkit-scrollbar-thumb {
+		background: var(--line);
+		border-radius: 5px;
+		border: 2px solid var(--canvas);
+	}
+	::-webkit-scrollbar-thumb:hover {
+		background: var(--muted);
+	}
+}
+
+/*
+ * A estrada que se desenha — o elemento de assinatura da landing.
+ *
+ * O `stroke-dashoffset` a correr de 100 para 0 faz a linha "pintar-se" da
+ * origem ao destino. É exactamente o gesto que o telemóvel faz no splash
+ * quando abre, aqui trazido para o sítio. A duração acompanha a da saga de
+ * uma boleia real: 1.4s é o tempo de ver a linha crescer, não de a ver
+ * desenhar-se ao milímetro.
+ */
+@keyframes road-draw {
+	from {
+		stroke-dashoffset: var(--road-length, 100);
+	}
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+
+@keyframes node-pop {
+	from {
+		transform: scale(0);
+		opacity: 0;
+	}
+	to {
+		transform: scale(1);
+		opacity: 1;
+	}
+}
+
+@keyframes fade-up {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes pulse-soft {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.45;
+	}
+}
+
+.road-draw {
+	animation: road-draw 1.4s var(--ease-road) forwards;
+}
+
+.road-node {
+	/*
+	 * Cada nó entra escalado, atrasado em relação à linha que chega a ele.
+	 *
+	 * `transform-box: fill-box` e o `transform-origin` ficam de fora: são
+	 * para elementos SVG, e aqui os nós são `<div>` de largura zero, com a
+	 * escala a acontecer à volta do ponto onde já estão posicionados.
+	 * `center` de um content box zero é exactamente o ponto da curva.
+	 */
+	animation: node-pop 0.35s var(--ease-road) backwards;
+	animation-delay: calc(var(--node-index, 0) * 180ms);
+}
+
+.animate-fade-up {
+	animation: fade-up 0.4s var(--ease-road) both;
+}
+
+.animate-pulse-soft {
+	animation: pulse-soft 1.6s ease-in-out infinite;
+}
+
+/*
+ * `prefers-reduced-motion` não é um detalhe: quem o tem activo recebe a
+ * estrada já desenhada e as secções sem translação. A informação é a mesma;
+ * só o movimento desaparece.
+ */
+@media (prefers-reduced-motion: reduce) {
+	html {
+		scroll-behavior: auto;
+	}
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+}
