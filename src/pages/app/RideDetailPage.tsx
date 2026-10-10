@@ -9,7 +9,7 @@ import { StatusStamp } from '../../components/ui/StatusStamp';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SkeletonLine } from '../../components/ui/Skeleton';
 import { RoadTrack } from '../../components/marketing/RoadTrack';
-import { usePageTitle } from '../../hooks/usePageTitle';
+import { usePageTitle } from '../../hooks/usePageMeta';
 import { useKycMe } from '../../hooks/useKyc';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { hhmm, fmtLongDate, durationBetween, seatsLeft } from '../../lib/format';

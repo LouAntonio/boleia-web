@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import { qk } from '../../lib/queryClient';
 import { apiErrorMessage } from '../../lib/axios';
-import { usePageTitle } from '../../hooks/usePageTitle';
+import { usePageTitle } from '../../hooks/usePageMeta';
 import { useProvinces, useLocalityOptions } from '../../hooks/useLocalities';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';

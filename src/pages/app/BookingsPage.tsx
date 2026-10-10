@@ -8,7 +8,7 @@ import { StatusStamp } from '../../components/ui/StatusStamp';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SkeletonLine } from '../../components/ui/Skeleton';
 import { Modal } from '../../components/ui/Modal';
-import { usePageTitle } from '../../hooks/usePageTitle';
+import { usePageTitle } from '../../hooks/usePageMeta';
 import { fmtLongDate, hhmm, fmtKz } from '../../lib/format';
 import type { Booking } from '../../types/api';
 

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Logo } from '../components/layout/Logo';
 import { Button } from '../components/ui/Button';
-import { usePageTitle } from '../hooks/usePageTitle';
+import { usePageTitle } from '../hooks/usePageMeta';
 import { ThemeToggle } from '../components/layout/ThemeToggle';
 
 /**

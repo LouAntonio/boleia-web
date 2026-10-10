@@ -14,7 +14,7 @@ import { StatusStamp } from '../../components/ui/StatusStamp';
 import { SeatGrid } from '../../components/ui/SeatGrid';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SkeletonLine } from '../../components/ui/Skeleton';
-import { usePageTitle } from '../../hooks/usePageTitle';
+import { usePageTitle } from '../../hooks/usePageMeta';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { fmtLongDate, hhmm, fmtKz } from '../../lib/format';
 

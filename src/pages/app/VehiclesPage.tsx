@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import * as api from '../../lib/api';
 import { qk } from '../../lib/queryClient';
 import { apiErrorMessage } from '../../lib/axios';
-import { usePageTitle } from '../../hooks/usePageTitle';
+import { usePageTitle } from '../../hooks/usePageMeta';
 import { Button } from '../../components/ui/Button';
 import { Field } from '../../components/ui/Field';
 import { Card } from '../../components/ui/Card';

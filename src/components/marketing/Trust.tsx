@@ -1,4 +1,5 @@
-import { BadgeCheck, BusFront, IdCard, PhoneCall } from 'lucide-react';
+import { BadgeCheck, BusFront, IdCard, PhoneCall, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 /*
  * A confiança.
@@ -67,6 +68,19 @@ export function Trust() {
 						</li>
 					))}
 				</ul>
+
+				{/*
+				 * A secção diz que as quatro coisas são verdade; a página diz como
+				 * se confirma e o que se guarda. Sem este link, alguém que lê a
+				 * landing e fica na dúvida fica na dúvida.
+				 */}
+				<Link
+					to="/seguranca"
+					className="mt-10 inline-flex items-center gap-1.5 rounded-sm text-label font-medium text-brand-text underline-offset-4 hover:underline"
+				>
+					Como isto se confirma
+					<ArrowRight size={16} aria-hidden="true" />
+				</Link>
 			</div>
 		</section>
 	);

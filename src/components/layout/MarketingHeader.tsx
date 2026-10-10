@@ -4,12 +4,6 @@ import { useEffect, useState } from 'react';
 import { Button } from '../ui/Button';
 import { ThemeToggle } from './ThemeToggle';
 
-const SECTIONS = [
-	{ href: '#como-funciona', label: 'Como funciona' },
-	{ href: '#rotas', label: 'Rotas' },
-	{ href: '#confianca', label: 'Confiança' },
-];
-
 /**
  * O cabeçalho público.
  *
@@ -17,7 +11,35 @@ const SECTIONS = [
  * corpo, e o resultado é sempre uma faixa de um pixel a mais ou a menos. Com
  * `sticky` o conteúdo começa logo abaixo e não há nada a acertar.
  */
-export function MarketingHeader() {
+
+/**
+ * As secções da landing, que são âncoras dentro da própria página.
+ *
+ * Só aparecem em `/`. Numa página institucional levariam a pessoa ao sítio
+ * errado — `/sobre#rotas` rola até uma secção que aí não existe, e o browser não
+ * diz nada quando uma âncora não encontra o seu alvo.
+ */
+const SECTIONS = [
+	{ href: '/#como-funciona', label: 'Como funciona' },
+	{ href: '/#rotas', label: 'Rotas' },
+	{ href: '/#confianca', label: 'Confiança' },
+];
+
+/**
+ * As páginas. Aqui é que vivem.
+ *
+ * "Para motoristas" está no header porque é a conversão de quem tem uma
+ * viatura. Estar a um clique do logo é a diferença entre essa pessoa criar conta
+ * e fechar o separador.
+ */
+const PAGES = [
+	{ to: '/sobre', label: 'Sobre' },
+	{ to: '/motoristas', label: 'Para motoristas' },
+	{ to: '/perguntas', label: 'Perguntas' },
+	{ to: '/contacto', label: 'Contacto' },
+];
+
+export function MarketingHeader({ onNavigate }: { onNavigate?: () => void }) {
 	const [open, setOpen] = useState(false);
 
 	// Com o menu aberto, o fundo não deve continuar a rolar por baixo dele.
@@ -30,11 +52,17 @@ export function MarketingHeader() {
 		};
 	}, [open]);
 
+	function close() {
+		setOpen(false);
+		onNavigate?.();
+	}
+
 	return (
 		<header className="sticky top-0 z-40 border-b border-line bg-surface/85 backdrop-blur-md">
 			<div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-6">
 				<Link
 					to="/"
+					onClick={close}
 					className="shrink-0"
 					aria-label="Boleia, ir para o início"
 				>
@@ -48,17 +76,24 @@ export function MarketingHeader() {
 				</Link>
 
 				<nav
+					aria-label="Páginas"
 					className="hidden items-center gap-1 md:flex"
-					aria-label="Secções"
 				>
-					{SECTIONS.map((section) => (
-						<a
-							key={section.href}
-							href={section.href}
-							className="rounded-sm px-3 py-2 text-body text-muted transition-colors hover:bg-canvas hover:text-ink"
+					{PAGES.map((page) => (
+						<NavLink
+							key={page.to}
+							to={page.to}
+							className={({ isActive }) =>
+								[
+									'rounded-sm px-3 py-2 text-body transition-colors',
+									isActive
+										? 'bg-brand-soft text-brand-text'
+										: 'text-muted hover:bg-canvas hover:text-ink',
+								].join(' ')
+							}
 						>
-							{section.label}
-						</a>
+							{page.label}
+						</NavLink>
 					))}
 				</nav>
 
@@ -91,35 +126,51 @@ export function MarketingHeader() {
 
 			{/*
 			 * Não é um `hidden` com CSS: o painel está no DOM só quando está
-			 * aberto. Um menu fechado que fica no DOM é lido pelo teclado em
-			 * alguns leitores de ecrã, e os seus links entram no separador de
-			 * atalhos sem levar a lado nenhum.
+			 * aberto. Um menu fechado que fica no DOM entra no separador de
+			 * atalhos de alguns leitores de ecrã, e os seus links levam a lado
+			 * nenhum sem se ver nada.
 			 */}
 			{open ? (
 				<div
 					id="menu-movel"
 					className="fixed inset-x-0 top-16 bottom-0 z-30 overflow-y-auto border-t border-line bg-surface px-6 py-6 md:hidden"
 				>
-					<nav className="flex flex-col" aria-label="Secções">
-						{SECTIONS.map((section) => (
-							<a
-								key={section.href}
-								href={section.href}
-								onClick={() => setOpen(false)}
-								className="border-b border-line py-4 text-h3 text-ink"
+					<nav className="flex flex-col" aria-label="Páginas">
+						{PAGES.map((page) => (
+							<NavLink
+								key={page.to}
+								to={page.to}
+								onClick={close}
+								className={({ isActive }) =>
+									[
+										'border-b border-line py-4 text-h3',
+										isActive ? 'text-brand-text' : 'text-ink',
+									].join(' ')
+								}
 							>
-								{section.label}
-							</a>
+								{page.label}
+							</NavLink>
+						))}
+
+						{SECTIONS.map((section) => (
+							<Link
+								key={section.href}
+								to={section.href}
+								onClick={close}
+								className="border-b border-line py-4 text-body text-muted"
+							>
+								{section.label.replace('#', ' · ')}
+							</Link>
 						))}
 					</nav>
 
 					<div className="mt-8 flex flex-col gap-3">
-						<Link to="/entrar" onClick={() => setOpen(false)}>
+						<Link to="/entrar" onClick={close}>
 							<Button variant="secondary" full size="lg">
 								Já tenho conta
 							</Button>
 						</Link>
-						<Link to="/criar-conta" onClick={() => setOpen(false)}>
+						<Link to="/criar-conta" onClick={close}>
 							<Button full size="lg">
 								Criar conta
 							</Button>

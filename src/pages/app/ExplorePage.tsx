@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SkeletonCards } from '../../components/ui/Skeleton';
 import { RideCard } from '../../components/rides/RideCard';
-import { usePageTitle } from '../../hooks/usePageTitle';
+import { usePageTitle } from '../../hooks/usePageMeta';
 import { PROVINCE_OPTIONS } from '../../lib/geo';
 import { toDateInput } from '../../lib/format';
 import type { ListRidesQuery } from '../../lib/api';

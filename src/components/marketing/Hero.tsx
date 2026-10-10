@@ -150,6 +150,23 @@ export function DriverCallout() {
 						</Button>
 					</Link>
 				</div>
+
+				{/*
+				 * O botão de cima vai directamente para a conta. Este vai para a
+				 * página que explica o processo e o preço: quem já tem conta não
+				 * precisa de um resumo, e quem não tem precisa de saber quanto
+				 * fica antes de se registar.
+				 */}
+				<p className="mt-6 text-small text-muted">
+					Queres saber como funciona e quanto se fica com cada lugar?{' '}
+					<Link
+						to="/motoristas"
+						className="rounded-sm text-brand-text underline-offset-4 hover:underline"
+					>
+						Lê a página para motoristas
+					</Link>
+					.
+				</p>
 			</div>
 		</section>
 	);

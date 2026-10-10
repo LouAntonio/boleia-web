@@ -3,7 +3,7 @@ import { HowItWorks } from '../components/marketing/HowItWorks';
 import { ProvincesMap } from '../components/marketing/ProvincesMap';
 import { LiveRides } from '../components/marketing/LiveRides';
 import { Trust } from '../components/marketing/Trust';
-import { usePageTitle } from '../hooks/usePageTitle';
+import { usePageTitle } from '../hooks/usePageMeta';
 
 /**
  * A página institucional.

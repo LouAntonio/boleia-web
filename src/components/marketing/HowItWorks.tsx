@@ -1,4 +1,5 @@
-import { Bike, CalendarCheck, Hand } from 'lucide-react';
+import { Bike, CalendarCheck, Hand, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { RoadTrack } from './RoadTrack';
 import { SeatGrid } from '../ui/SeatGrid';
 
@@ -103,6 +104,18 @@ export function HowItWorks() {
 						</li>
 					))}
 				</ol>
+
+				{/*
+				 * Três passos são o resumo. As perguntas que ficam à parte são as
+				 * que não cabem em três, e esta é a ponte entre os dois.
+				 */}
+				<Link
+					to="/perguntas"
+					className="mt-10 inline-flex items-center gap-1.5 rounded-sm text-label font-medium text-brand-text underline-offset-4 hover:underline"
+				>
+					Tem mais perguntas?
+					<ArrowRight size={16} aria-hidden="true" />
+				</Link>
 			</div>
 		</section>
 	);

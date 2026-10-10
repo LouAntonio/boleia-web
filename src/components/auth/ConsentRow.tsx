@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 interface ConsentRowProps {
 	terms: boolean;
 	marketing: boolean;
@@ -14,10 +16,10 @@ interface ConsentRowProps {
  * interface: os termos são a condição de usar a conta, e o marketing é uma
  * escolha de quem pode recusar sem perder nada.
  *
- * Os links vão para `/#termos` e `/#privacidade` — que são secções do rodapé.
- * Numa v1 sem páginas de termos escritas, o que há para ler é este texto e o
- * que está no rodapé. Um link para uma página inexistente seria pior do que
- * dizer onde está a informação.
+ * Os links vão para `/termos` e `/privacidade` — páginas inteiras, não secções
+ * da landing. E abrem num separador novo (`target="_blank"`) porque quem está a
+ * aceitar os termos está no meio de um formulário de registo: levá-lo para
+ * outra página tira-lhe tudo o que escreveu.
  */
 export function ConsentRow({
 	terms,
@@ -43,19 +45,23 @@ export function ConsentRow({
 				/>
 				<span className="text-small text-muted">
 					Li e aceito os{' '}
-					<a
-						href="/#termos"
+					<Link
+						to="/termos"
+						target="_blank"
+						rel="noopener"
 						className="rounded-sm text-brand-text underline-offset-4 hover:underline"
 					>
 						termos de uso
-					</a>{' '}
+					</Link>{' '}
 					e a{' '}
-					<a
-						href="/#privacidade"
+					<Link
+						to="/privacidade"
+						target="_blank"
+						rel="noopener"
 						className="rounded-sm text-brand-text underline-offset-4 hover:underline"
 					>
 						política de privacidade
-					</a>
+					</Link>
 					.
 				</span>
 			</label>
