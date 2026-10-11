@@ -6,8 +6,8 @@ import { Button } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SkeletonCards } from '../../components/ui/Skeleton';
 import { RideCard } from '../../components/rides/RideCard';
+import { LocalityFilter } from '../../components/rides/LocalityFilter';
 import { usePageTitle } from '../../hooks/usePageMeta';
-import { PROVINCE_OPTIONS } from '../../lib/geo';
 import { toDateInput } from '../../lib/format';
 import type { ListRidesQuery } from '../../lib/api';
 
@@ -38,6 +38,8 @@ export function ExplorePage() {
 	// seguir", e um `date` obriga a pensar em datas em vez de em dias.
 	const query = useMemo<ListRidesQuery>(() => {
 		const base: ListRidesQuery = { limit: 24 };
+		// Ids de localidade, nunca nomes de província: o backend filtra por
+		// `ride_stop.localityId` e valida o valor como UUID.
 		if (origin) base.origin = origin;
 		if (destination) base.destination = destination;
 
@@ -113,19 +115,19 @@ export function ExplorePage() {
 			 * de a pessoa saber o que está a ver sem voltar ao topo.
 			 */}
 			<div className="grid gap-3 rounded-lg border border-line bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4">
-				<Select
+				<LocalityFilter
 					label="De onde"
 					value={origin}
 					onChange={setOrigin}
-					options={PROVINCE_OPTIONS}
-					placeholder="Todas as províncias"
+					exclude={destination}
+					placeholder="Todos"
 				/>
-				<Select
+				<LocalityFilter
 					label="Para onde"
 					value={destination}
 					onChange={setDestination}
-					options={PROVINCE_OPTIONS}
-					placeholder="Todas as províncias"
+					exclude={origin}
+					placeholder="Todos"
 				/>
 				<Select
 					label="Quando"

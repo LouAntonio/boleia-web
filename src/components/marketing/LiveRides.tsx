@@ -4,7 +4,12 @@ import { ArrowRight } from 'lucide-react';
 import { SeatGrid } from '../ui/SeatGrid';
 import { Button } from '../ui/Button';
 import { RoadTrack } from './RoadTrack';
-import { hhmm, durationBetween, relativeDay } from '../../lib/format';
+import {
+	hhmm,
+	durationBetween,
+	relativeDay,
+	routeEndpoints,
+} from '../../lib/format';
 import * as api from '../../lib/api';
 import { qk } from '../../lib/queryClient';
 import type { PublicRide } from '../../types/api';
@@ -66,6 +71,13 @@ export function LiveRides() {
 }
 
 function PublicRideCard({ ride }: { ride: PublicRide }) {
+	/*
+	 * A rota vem numa string só. `originName`/`destinationName` nunca existiram
+	 * no `RIDE_PUBLIC_SELECT`, e usá-los punha `undefined` no ecrã e no
+	 * `aria-label` do `RoadTrack` — que é lido em voz alta.
+	 */
+	const { origin, destination } = routeEndpoints(ride.routeName);
+
 	return (
 		<article className="flex flex-col rounded-lg border border-line bg-surface p-6">
 			<header className="flex items-baseline justify-between gap-3">
@@ -80,8 +92,8 @@ function PublicRideCard({ ride }: { ride: PublicRide }) {
 					animate={false}
 					height={96}
 					stops={[
-						{ name: ride.originName, time: hhmm(ride.departureAt) },
-						{ name: ride.destinationName, time: hhmm(ride.arrivalAt) },
+						{ name: origin, time: hhmm(ride.departureAt) },
+						{ name: destination, time: hhmm(ride.arrivalAt) },
 					]}
 				/>
 			</div>

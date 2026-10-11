@@ -69,6 +69,7 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 	const [biFront, setBiFront] = useState<string | null>(null);
 	const [biBack, setBiBack] = useState<string | null>(null);
 	const [selfies, setSelfies] = useState<string[]>([]);
+	const [bodyPhoto, setBodyPhoto] = useState<string | null>(null);
 	const [license, setLicense] = useState<string | null>(null);
 
 	const [errors, setErrors] = useState<Record<string, string | null>>({});
@@ -81,18 +82,16 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 				biFront: biFront as string,
 				biBack: biBack as string,
 				selfies,
-				...(isPassenger ? {} : { license: license ?? undefined }),
+				...(isPassenger
+					? { bodyPhoto: bodyPhoto as string }
+					: { license: license ?? undefined }),
 			};
 
 			return isPassenger
 				? api.submitPassengerKyc({
 						fullName: fullName.trim(),
 						biNumber: biNumber.trim(),
-						mediaIds: {
-							biFront: mediaIds.biFront,
-							biBack: mediaIds.biBack,
-							selfies,
-						},
+						mediaIds,
 					})
 				: api.submitDriverKyc({
 						fullName: fullName.trim(),
@@ -128,6 +127,10 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 				selfies.length >= 2
 					? null
 					: 'Carrega pelo menos duas fotografias tuas.',
+			bodyPhoto:
+				isPassenger && !bodyPhoto
+					? 'Carrega a foto de corpo inteiro.'
+					: null,
 			license:
 				!isPassenger && !license ? 'Carrega a carta de condução.' : null,
 		};
@@ -265,6 +268,17 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 						) : null}
 					</div>
 
+					{isPassenger ? (
+						<UploadRow
+							label="Foto de corpo inteiro"
+							fileId={bodyPhoto}
+							onUploaded={setBodyPhoto}
+							error={errors.bodyPhoto}
+							ownerType="PASSENGER_KYC"
+							hint="De corpo inteiro, da cabeça aos pés, para se ver que és tu."
+						/>
+					) : null}
+
 					{!isPassenger ? (
 						<>
 							<Field
@@ -323,16 +337,20 @@ function UploadRow({
 	onUploaded,
 	error,
 	ownerType,
+	hint,
 }: {
 	label: string;
 	fileId: string | null;
 	onUploaded: (id: string) => void;
 	error?: string | null;
 	ownerType: 'DRIVER_KYC' | 'PASSENGER_KYC';
+	hint?: string;
 }) {
 	return (
 		<div>
 			<label className="text-label text-ink">{label}</label>
+
+			{hint ? <p className="mt-1 text-small text-muted">{hint}</p> : null}
 
 			<div className="mt-2">
 				{fileId ? (

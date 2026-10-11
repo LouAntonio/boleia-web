@@ -2,7 +2,13 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { RoadTrack } from '../marketing/RoadTrack';
 import { SeatGrid } from '../ui/SeatGrid';
-import { hhmm, relativeDay, durationBetween, seatsLeft } from '../../lib/format';
+import {
+	hhmm,
+	relativeDay,
+	durationBetween,
+	seatsLeft,
+	routeEndpoints,
+} from '../../lib/format';
 import { statusMeta } from '../../lib/status';
 import type { Ride } from '../../types/api';
 
@@ -104,7 +110,11 @@ export function RideCard({
  * `routeName` no backend é o nome do percurso inteiro ("Luanda → Benguela"), e
  * o primeiro cartão é o melhor palpite que existe sem a lista de paragens. Quando
  * há separador, corta no meio e fica com o primeiro membro.
+ *
+ * O corte vive em `lib/format.ts`, partilhado com a landing — que tinha uma
+ * terceira versão, a que lia campos `originName`/`destinationName` que o
+ * servidor não devolve.
  */
 function originOf(ride: Ride): string {
-	return ride.routeName.split(/[–—>-]/)[0]?.trim() || ride.routeName;
+	return routeEndpoints(ride.routeName).origin;
 }

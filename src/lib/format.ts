@@ -121,6 +121,32 @@ export function seatsLeft(seatsTotal: number, seatsTaken: number): number {
 	return Math.max(0, seatsTotal - seatsTaken);
 }
 
+/**
+ * Separa as duas pontas de um `routeName`.
+ *
+ * O backend guarda o percurso como uma string só — "Luanda → Benguela" — e a
+ * lista pública de corridas não traz paragens separadas. Derivar a origem e o
+ * destino dessa string é o melhor que existe sem ir buscar as paragens.
+ *
+ * Havia duas implementações deste corte, uma por componente, e uma terceira
+ * forma de supor que o servidor mandava `originName`/`destinationName` campos
+ * que não existem no `RIDE_PUBLIC_SELECT`. A landing renderizava `undefined`
+ * como nome de localidade, e o `RoadTrack` anunciava isso a um leitor de ecrã.
+ *
+ * Com menos de dois membros, o destino devolve o `routeName` inteiro em vez de
+ * metade — metade seria pior.
+ */
+export function routeEndpoints(routeName: string): {
+	origin: string;
+	destination: string;
+} {
+	const parts = routeName.split(/\s*[–—>-]\s*/).filter(Boolean);
+	if (parts.length < 2) {
+		return { origin: routeName, destination: routeName };
+	}
+	return { origin: parts[0], destination: parts[parts.length - 1] };
+}
+
 /** "2 de 4 lugares" — o número grande é o que interessa, o resto é contexto. */
 export function seatsLabel(seatsTotal: number, seatsTaken: number): string {
 	const free = seatsLeft(seatsTotal, seatsTaken);

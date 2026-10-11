@@ -15,7 +15,7 @@ import { Card } from '../../components/ui/Card';
 import { ThemeToggle } from '../../components/layout/ThemeToggle';
 import { StatusStamp } from '../../components/ui/StatusStamp';
 import { KycBadge } from '../../components/ui/KycBadge';
-import { maskPhone, phoneError } from '../../lib/phone';
+import { maskPhone } from '../../lib/phone';
 
 type Tab = 'perfil' | 'seguranca' | 'aparencia';
 
@@ -80,10 +80,22 @@ function ProfileTab() {
 	const user = useAuthStore((s) => s.user);
 	const [name, setName] = useState(user?.name ?? '');
 	const [surname, setSurname] = useState(user?.surname ?? '');
-	const [phone, setPhone] = useState(user?.phone ?? '');
 	const [error, setError] = useState<string | null>(null);
 
 	const save = useUpdateProfile();
+
+	/*
+	 * O telefone não é editável.
+	 *
+	 * O formulário ofereceva-o e o `PATCH /api/account/profile` não o aceita —
+	 * o endpoint só trata `name`, `surname` e `bio`. Pior, o texto dizia
+	 * "mudar de número exige confirmação por código. Envia-te-mos um": nenhum
+	 * código era enviado, e a alteração era descartada em silêncio pelo
+	 * servidor, sem erro visível. Ou o número muda por um fluxo de servidor com
+	 * verificação por OTP, ou não muda — o que se oferece no ecrã não pode ser
+	 * uma promessa que nada cumpre.
+	 */
+	const phone = user?.phone ?? '';
 
 	function submit(event: React.FormEvent) {
 		event.preventDefault();
@@ -93,30 +105,10 @@ function ProfileTab() {
 			return;
 		}
 
-		// O telefone é a identidade da conta. O servidor pode recusá-lo — se for
-		// o número de outra pessoa, se já estiver em uso — e nesse caso o nome
-		// não deve ficar guardado só porque o resto estava bem. Por isso são
-		// duas-envios: o telefone muda com as suas próprias consequências.
-		const samePhone = phone.trim() === (user?.phone ?? '');
-		if (samePhone) {
-			save.mutate({
-				name: name.trim(),
-				surname: surname.trim() || undefined,
-			});
-			return;
-		}
-
-		const problem = phoneError(phone);
-		if (problem) {
-			setError(problem);
-			return;
-		}
-
 		setError(null);
 		save.mutate({
 			name: name.trim(),
 			surname: surname.trim() || undefined,
-			phone: phone.trim(),
 		});
 	}
 
@@ -144,21 +136,16 @@ function ProfileTab() {
 					hint="Opcional."
 				/>
 
-				<Field
-					label="Número de telefone"
-					value={phone}
-					onChange={(event) => {
-						setPhone(maskPhone(event.target.value));
-						setError(null);
-					}}
-					inputMode="tel"
-					autoComplete="tel"
-					hint={
-						phone.trim() === (user?.phone ?? '')
-							? 'O teu número de entrada na conta.'
-							: 'Mudar de número exige confirmação por código. Envia-te-mos um.'
-					}
-				/>
+				<div className="flex flex-col gap-1.5">
+					<span className="text-label text-ink">Número de telefone</span>
+					<p className="flex h-11 items-center rounded-md border border-line bg-canvas px-3 text-body text-muted">
+						{phone || '—'}
+					</p>
+					<p className="text-small text-muted">
+						O teu número de entrada na conta. Não pode ser alterado
+						aqui.
+					</p>
+				</div>
 
 				<div className="flex items-center justify-end gap-3 pt-2">
 					<Button type="submit" disabled={save.isPending}>

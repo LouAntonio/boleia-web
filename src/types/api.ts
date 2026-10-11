@@ -157,8 +157,12 @@ export interface PublicRide {
 	seatsTotal: number;
 	seatsTaken: number;
 	pricePerSeat: number;
-	originName: string;
-	destinationName: string;
+	/*
+	 * A rota chega numa string só, "Luanda → Benguela" — o backend não manda
+	 * `originName` nem `destinationName`, e declará-los aqui punha `undefined`
+	 * no ecrã e no `aria-label` do `RoadTrack`. As duas pontas derivam-se em
+	 * `routeEndpoints` (`lib/format.ts`).
+	 */
 }
 
 /* ---------- Reservas ---------- */
@@ -204,6 +208,14 @@ export interface Booking {
 		departureAt: string;
 		arrivalAt: string;
 		status: RideStatus;
+	};
+	/**
+	 * Só vem em `GET /api/rides/:id/bookings`, que é a lista do motorista.
+	 * Sem o nome, a decisão de aceitar ou recusar um lugar é às cegas.
+	 */
+	passenger?: {
+		id: string;
+		name: string;
 	};
 }
 

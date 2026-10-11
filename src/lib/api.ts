@@ -130,20 +130,35 @@ export function startGoogleSignIn(redirectTo: string): void {
 
 /* ---------- Perfil ---------- */
 
+/**
+ * Campos que `PATCH /api/account/profile` aceita.
+ *
+ * Só `name`, `surname` e `bio`. `phone` e `imageId` aqui eram promessa vazia:
+ * o endpoint não os aceita, e devolve `Nada para atualizar` se forem os únicos
+ * a mudar. A página de perfil prometia ao utilizador que mudar o número
+ * disparava um código por WhatsApp — nenhum código era enviado, e a alteração
+ * era descartada em silêncio.
+ */
 export interface ProfileUpdate {
 	name?: string;
 	surname?: string;
-	phone?: string;
-	imageId?: string | null;
 	bio?: string;
 }
 
+/**
+ * Actualiza o perfil e devolve o utilizador actualizado.
+ *
+ * O endpoint responde com o utilizador **em plano**, não embrulhado em `{ user }`
+ * (`account.service.ts`). O cliente lia `data.user`, que era `undefined`, e o
+ * `useAuth` escrevia isso no store: guardar o nome apagava o nome, o avatar e
+ * o papel na sessão, sem erro nenhum.
+ */
 export async function updateProfile(input: ProfileUpdate): Promise<SessionUser> {
-	const { data } = await apiClient.patch<{ user: SessionUser }>(
+	const { data } = await apiClient.patch<SessionUser>(
 		'/api/account/profile',
 		input,
 	);
-	return data.user;
+	return data;
 }
 
 export async function fetchEmergencyContact(): Promise<EmergencyContact | null> {
@@ -389,24 +404,35 @@ export async function fetchKycMe(): Promise<KycMe> {
 	return data;
 }
 
+/**
+ * Os dois formulários partilham o mesmo tipo de media.
+ *
+ * Ficavam dois idênticos e divergentes — o do passageiro tinha menos um campo,
+ * e esse campo a menos era exactamente o `bodyPhoto` que o servidor exige
+ * (`kyc.service.ts`, `assertPassengerMedia`). Com o tipo único, faltou um campo
+ * num sítio e o compilador diz.
+ */
+interface KycMediaIdsInput {
+	biFront: string;
+	biBack: string;
+	selfies: string[];
+	license?: string;
+	bodyPhoto?: string;
+}
+
 export interface SubmitDriverKycInput {
 	fullName: string;
 	biNumber: string;
 	licenseNumber?: string;
 	licenseExpiry?: string;
-	mediaIds: {
-		biFront: string;
-		biBack: string;
-		selfies: string[];
-		license?: string;
-		bodyPhoto?: string;
-	};
+	mediaIds: KycMediaIdsInput;
 }
 
 export interface SubmitPassengerKycInput {
 	fullName: string;
 	biNumber: string;
-	mediaIds: { biFront: string; biBack: string; selfies: string[] };
+	/** `bodyPhoto` é obrigatório no servidor, como no telemóvel. */
+	mediaIds: KycMediaIdsInput;
 }
 
 export async function submitDriverKyc(
@@ -480,6 +506,42 @@ export async function confirmUpload(publicId: string): Promise<void> {
 	await apiClient.post('/api/cloudinary/confirm', { publicId });
 }
 
+/**
+ * Os campos que o Cloudinary assina, e que têm de viajar no pedido.
+ *
+ * O backend assina cinco parâmetros (`cloudinary.service.ts`, `toSign`):
+ * `timestamp`, `public_id`, `transformation`, `eager` e `allowed_formats`. O
+ * Cloudinary recalcula a assinatura **sobre o que recebe**; um parâmetro
+ * assinado que não vai no pedido faz a assinatura não bater e o upload ser
+ * recusado com um 400 sem explicação.
+ *
+ * O `allowed_formats` faltava aqui e o `eager` faltava na app móvel — em
+ * conjunto, KYC e registo de viaturas não funcionavam em lado nenhum.
+ */
+const SIGNED_UPLOAD_FIELDS = [
+	'timestamp',
+	'public_id',
+	'transformation',
+	'eager',
+	'allowed_formats',
+] as const;
+
+function appendSignedParams(form: FormData, signature: UploadSignature): void {
+	// `public_id` e `allowed_formats` têm sublinhado no protocolo do Cloudinary;
+	// o objecto da API usa camelCase.
+	for (const field of SIGNED_UPLOAD_FIELDS) {
+		const value =
+			field === 'public_id'
+				? signature.publicId
+				: field === 'allowed_formats'
+					? signature.allowedFormats
+					: signature[field];
+		if (value !== undefined && value !== null && value !== '') {
+			form.append(field, String(value));
+		}
+	}
+}
+
 /** Assinatura → Cloudinary → confirmar. Devolve o `mediaId` para guardar. */
 export async function uploadImage(
 	file: File,
@@ -490,12 +552,8 @@ export async function uploadImage(
 	const form = new FormData();
 	form.append('file', file);
 	form.append('api_key', signature.apiKey);
-	form.append('timestamp', String(signature.timestamp));
 	form.append('signature', signature.signature);
-	form.append('public_id', signature.publicId);
-	if (signature.transformation)
-		form.append('transformation', signature.transformation);
-	if (signature.eager) form.append('eager', signature.eager);
+	appendSignedParams(form, signature);
 
 	const response = await fetch(signature.uploadUrl, {
 		method: 'POST',
@@ -509,11 +567,19 @@ export async function uploadImage(
 	return signature.mediaId;
 }
 
-/** URL público de um `mediaId`, para mostrar uma foto já guardada. */
-export async function fetchMediaUrl(mediaId: string): Promise<string | null> {
+/**
+ * URL de entrega de um ficheiro, para mostrar uma foto já guardada.
+ *
+ * O `publicId` (não o `mediaId`) é o que o endpoint procura: `MediaService`
+ * faz `findUnique({ where: { publicId } })`. Passar o `mediaId` — que é um UUID
+ * da nossa base — nunca casa, e a resposta é um 404. `uploadImage` devolve o
+ * `mediaId` porque é isso que o KYC e as viaturas guardam, mas para *mostrar*
+ * um ficheiro já guardado é preciso o `publicId` da assinatura.
+ */
+export async function fetchMediaUrl(publicId: string): Promise<string | null> {
 	const { data } = await apiClient.get<{ url: string | null }>(
 		'/api/cloudinary/url',
-		{ params: { publicId: mediaId } },
+		{ params: { publicId } },
 	);
 	return data.url;
 }
