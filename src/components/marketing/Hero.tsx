@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { RoadTrack } from './RoadTrack';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
-import { PROVINCE_OPTIONS } from '../../lib/geo';
+import { useAllLocalities } from '../../hooks/useLocalities';
+import { indexProvinces } from '../../hooks/useLocalities';
 
 /**
  * O percurso de exemplo.
@@ -28,6 +29,33 @@ const SAMPLE_ROUTE = [
 export function Hero() {
 	const [origin, setOrigin] = useState('');
 	const [destination, setDestination] = useState('');
+
+	/*
+	 * Localidades, não províncias.
+	 *
+	 * O `GET /api/rides` filtra por `ride_stop.localityId` e valida o valor
+	 * como UUID. A hero oferecia as 21 províncias e mandava o **nome** pelo
+	 * `?de=`, pelo que não havia forma de a escolha chegar ao filtro — e
+	 * ainda por cima o nome vinha da seed com o defecto do CP437
+	 * ("Bié" como `Bi\u251C\u00AE`).
+	 *
+	 * `GET /api/locality/provinces` e `.../localities` são rotas públicas
+	 * (`OptionalAuthGuard`), por isso a landing pode usá-las sem sessão. As
+	 * localities chegam por província, com o nome da província em cada linha,
+	 * porque "Caxito, Bengo" é muito mais útil do que "Caxito" repetido 30
+	 * vezes na lista.
+	 */
+	const { localities, isLoading } = useAllLocalities();
+	const provinceNames = indexProvinces(
+		localities.flatMap((l) => l.province ?? []),
+	);
+
+	const localOptions = localities.map((locality) => ({
+		value: locality.id,
+		label: provinceNames.get(locality.province?.id ?? '')
+			? `${locality.name} — ${provinceNames.get(locality.province?.id ?? '')}`
+			: locality.name,
+	}));
 
 	const ready = Boolean(origin && destination);
 
@@ -84,16 +112,22 @@ export function Hero() {
 							label="De onde"
 							value={origin}
 							onChange={setOrigin}
-							options={PROVINCE_OPTIONS}
-							placeholder="Escolhe a província"
+							options={localOptions}
+							placeholder={
+								isLoading
+									? 'A carregar…'
+									: 'Escolhe o ponto de partida'
+							}
 							className="bg-surface"
 						/>
 						<Select
 							label="Para onde"
 							value={destination}
 							onChange={setDestination}
-							options={PROVINCE_OPTIONS}
-							placeholder="Escolhe a província"
+							options={localOptions}
+							placeholder={
+								isLoading ? 'A carregar…' : 'Escolhe o destino'
+							}
 							className="bg-surface"
 						/>
 					</div>

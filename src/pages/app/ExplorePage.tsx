@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Compass } from 'lucide-react';
 import { useRides, useMyBookings } from '../../hooks/useRides';
 import { Select } from '../../components/ui/Select';
@@ -8,7 +9,7 @@ import { SkeletonCards } from '../../components/ui/Skeleton';
 import { RideCard } from '../../components/rides/RideCard';
 import { LocalityFilter } from '../../components/rides/LocalityFilter';
 import { usePageTitle } from '../../hooks/usePageMeta';
-import { toDateInput } from '../../lib/format';
+import { seatsLeft, toDateInput } from '../../lib/format';
 import type { ListRidesQuery } from '../../lib/api';
 
 const SORTS = [
@@ -16,6 +17,40 @@ const SORTS = [
 	{ value: 'cheap', label: 'Mais baratas' },
 	{ value: 'seats', label: 'Mais lugares' },
 ];
+
+/**
+ * Hidrata um filtro a partir da query string, uma vez só.
+ *
+ * A pesquisa da landing page chega aqui por `?de=<localityId>&para=<localityId>`.
+ * Antes desta correcção esses parâmetros eram descartados: a pessoa escolhia a
+ * rota na primeira página, criava conta, confirmava por WhatsApp e aterrava
+ * em `/app/explorar` **sem filtro nenhum**. O CTA principal da landing não
+ * levava a lado nenhum.
+ *
+ * O valor é um `localityId` e não um nome. O backend filtra por
+ * `ride_stop.localityId` e valida o valor como UUID; a hero deixa de
+ * converter o que a pessoa escolheu num nome para o 阅读 voltar a adivinhar
+ * qual localidade é. Os nomes vinham da seed com o defecto do CP437
+ * ("Bié" chegava como `Bi\u251C\u00AE`), o que tornava qualquer
+ * correspondência por texto frágil exactamente nas províncias com acentos.
+ *
+ * Só na montagem: se a pessoa mexer no selector depois, a URL já não manda.
+ */
+function useFilterFromUrl(
+	param: string,
+	apply: (localityId: string) => void,
+): void {
+	const [searchParams] = useSearchParams();
+	const done = useRef(false);
+
+	useEffect(() => {
+		if (done.current) return;
+		const value = searchParams.get(param);
+		if (!value) return;
+		done.current = true;
+		apply(value);
+	}, [param, searchParams, apply]);
+}
 
 const DATE_OPTIONS = [
 	{ value: '', label: 'Qualquer dia' },
@@ -32,6 +67,21 @@ export function ExplorePage() {
 	const [destination, setDestination] = useState('');
 	const [when, setWhen] = useState('');
 	const [sort, setSort] = useState('soon');
+
+	/*
+	 * A pesquisa da landing page chega aqui.
+	 *
+	 * A hero manda `?de=<província>&para=<província>` e, antes desta
+	 * correcção, esses parâmetros eram descartados: a pessoa escolhia a rota
+	 * na primeira página, criava conta, confirmava por WhatsApp e aterrava
+	 * aqui **sem filtro nenhum**. O CTA principal da landing não levava a lado
+	 * nenhum.
+	 *
+	 * O backend filtra por `ride_stop.localityId` e valida o valor como UUID,
+	 * por isso a query string traz o id e não o nome.
+	 */
+	useFilterFromUrl('de', setOrigin);
+	useFilterFromUrl('para', setDestination);
 
 	// O backend aceita um intervalo de datas. Um botão de "hoje / amanhã / 7
 	// dias" em vez de um calendário: quem procura boleia quer "quando saem a
@@ -86,9 +136,15 @@ export function ExplorePage() {
 
 		if (sort === 'cheap') rows.sort((a, b) => a.pricePerSeat - b.pricePerSeat);
 		if (sort === 'seats') {
+			/*
+			 * Ordena por lugares livres com o mesmo clamp que os cartões usam.
+			 * Sem ele, uma corrida sobrelotada (negativo) saltava para o topo
+			 * da lista de "mais lugares" — o oposto do que a pessoa pediu.
+			 */
 			rows.sort(
 				(a, b) =>
-					b.seatsTotal - b.seatsTaken - (a.seatsTotal - a.seatsTaken),
+					seatsLeft(b.seatsTotal, b.seatsTaken) -
+					seatsLeft(a.seatsTotal, a.seatsTaken),
 			);
 		}
 		// 'soon' chega do servidor já ordenado por `departureAt`.

@@ -153,8 +153,21 @@ export function RideDetailPage() {
 								<p className="text-body text-ink">
 									{ride.driver?.name ?? 'Motorista'}
 								</p>
+								{/*
+								 * Aqui dizia "Identidade verificada", sem condição
+								 * nenhuma — aparecia para todos os motoristas,
+								 * verificados ou não.
+								 *
+								 * O `Ride` não traz o estado do KYC do motorista,
+								 * e buscá-lo revelaria a outra pessoa o estado
+								 * da verificação de identidade de um terceiro.
+								 * Dizer "verificada" sem o saber é pior do que
+								 * não dizer nada.
+								 */}
 								<p className="text-small text-muted">
-									Identidade verificada
+									{ride.vehicle
+										? `${ride.vehicle.make} ${ride.vehicle.model} · ${ride.vehicle.plate}`
+										: 'Motorista'}
 								</p>
 							</div>
 						</div>

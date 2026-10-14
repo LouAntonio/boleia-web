@@ -87,7 +87,7 @@ export function useSession() {
 }
 
 /** Login por telefone e senha. */
-export function useSignIn() {
+export function useSignIn(redirectTo?: string) {
 	const setAuth = useAuthStore((s) => s.setAuth);
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -115,7 +115,23 @@ export function useSignIn() {
 			setAuth(token, user);
 			queryClient.clear();
 			toast.success('Entraste na tua conta');
-			navigate('/app/explorar', { replace: true });
+			/*
+			 * `redirectTo` é o sítio de onde a pessoa saiu — a `RequireAuth`
+			 * põe-no no `state`, e a `VerifyPage` põe o filtro escolhido na
+			 * landing. Sem isto, entrar depois de uma sessão caducada a meio de
+			 * uma pesquisa levava ao início e a pessoa perdia o que estava a
+			 * fazer.
+			 *
+			 * Só aceita caminhos internos: um `state` com `https://…` faria do
+			 * login um redireccionador para fora do site.
+			 */
+			const target =
+				redirectTo &&
+				redirectTo.startsWith('/') &&
+				!redirectTo.startsWith('//')
+					? redirectTo
+					: '/app/explorar';
+			navigate(target, { replace: true });
 		},
 		onError: (error: unknown) => {
 			const status = (error as { response?: { status?: number } })?.response
@@ -175,9 +191,19 @@ export function useUpdateProfile() {
 
 	return useMutation({
 		mutationFn: api.updateProfile,
-		onSuccess: (user) => {
-			setUser(toSessionUser(user));
-			queryClient.setQueryData(qk.session, toSessionUser(user));
+		onSuccess: (patch) => {
+			/*
+			 * Merge, não substituição. `updateProfile` devolve só o que o
+			 * servidor mudou (`{id, name, surname, bio, phone}`); tratar isso
+			 * como a sessão inteira fazia `toSessionUser` preencher o resto com
+			 * omissões — `role: 'USER'`, `email: ''`, `createdAt: ''` — e
+			 * guardar o nome despromovia o utilizador a USER no store e no
+			 * `localStorage`. Só o que veio do servidor muda; o resto fica.
+			 */
+			const current = queryClient.getQueryData<SessionUser>(qk.session);
+			const merged = { ...(current ?? {}), ...patch } as SessionUser;
+			setUser(merged);
+			queryClient.setQueryData(qk.session, merged);
 			toast.success('Perfil guardado');
 		},
 		onError: (error: unknown) => {

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, IdCard, Upload, X } from 'lucide-react';
+import { Check, IdCard, ShieldQuestion, Upload, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useKycMe } from '../../hooks/useKyc';
 import * as api from '../../lib/api';
@@ -10,6 +10,7 @@ import { usePageTitle } from '../../hooks/usePageMeta';
 import { Button } from '../../components/ui/Button';
 import { Field } from '../../components/ui/Field';
 import { Card } from '../../components/ui/Card';
+import { EmptyState } from '../../components/ui/EmptyState';
 import { StatusStamp } from '../../components/ui/StatusStamp';
 import type { KycState } from '../../types/api';
 
@@ -18,7 +19,7 @@ type Side = 'passenger' | 'driver';
 export function KycPage() {
 	usePageTitle('Verificação de identidade');
 
-	const { data, isPending } = useKycMe();
+	const { data, isPending, isError, refetch } = useKycMe();
 
 	return (
 		<div className="flex flex-col gap-8">
@@ -36,12 +37,33 @@ export function KycPage() {
 					<Card className="h-64 p-6" />
 					<Card className="h-64 p-6" />
 				</div>
-			) : (
+			) : null}
+
+			{/*
+			 * `data?.passenger ?? null` é o estado "ainda não verificaste", e é
+			 * isso que uma falha de rede não é. Sem este ramo, uma API em baixo
+			 * abria os dois formulários vazios, e recarregar o BI lá dentro
+			 * seria trabalho perdido — ou um pedido que o servidor rejeita.
+			 */}
+			{isError ? (
+				<EmptyState
+					icon={<ShieldQuestion size={32} />}
+					title="Não foi possível carregar a verificação"
+					description="O servidor não respondeu. O teu estado de verificação continua o que está."
+					action={
+						<Button variant="secondary" onClick={() => refetch()}>
+							Tentar de novo
+						</Button>
+					}
+				/>
+			) : null}
+
+			{!isPending && !isError ? (
 				<div className="grid gap-6 lg:grid-cols-2">
 					<KycForm side="passenger" state={data?.passenger ?? null} />
 					<KycForm side="driver" state={data?.driver ?? null} />
 				</div>
-			)}
+			) : null}
 		</div>
 	);
 }
@@ -388,7 +410,7 @@ function UploadButton({
 	async function handleFile(file: File) {
 		setBusy(true);
 		try {
-			const mediaId = await api.uploadImage(file, ownerType);
+			const { mediaId } = await api.uploadImage(file, ownerType);
 			onUploaded(mediaId);
 		} catch (error) {
 			toast.error(

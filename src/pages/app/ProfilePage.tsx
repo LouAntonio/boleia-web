@@ -162,9 +162,18 @@ function SecurityTab() {
 	const signOut = useSignOut();
 	const queryClient = useQueryClient();
 
-	const { data: kyc } = useQuery({ queryKey: qk.kyc, queryFn: api.fetchKycMe });
+	const {
+		data: kyc,
+		isPending: kycPending,
+		isError: kycError,
+		refetch: refetchKyc,
+	} = useQuery({ queryKey: qk.kyc, queryFn: api.fetchKycMe });
 
-	const { data: contact } = useQuery({
+	const {
+		data: contact,
+		isError: contactError,
+		refetch: refetchContact,
+	} = useQuery({
 		queryKey: qk.emergencyContact,
 		queryFn: api.fetchEmergencyContact,
 	});
@@ -199,26 +208,50 @@ function SecurityTab() {
 			<Card className="p-6">
 				<h2 className="text-h3 text-ink">Verificação</h2>
 
-				<div className="mt-4 flex flex-col gap-3">
-					<div className="flex items-center justify-between gap-4">
-						<KycBadge
-							state={kyc?.passenger ?? null}
-							what="identidade de passageiro"
-						/>
-						<StatusStamp
-							status={kyc?.passenger?.status ?? 'NOT_SUBMITTED'}
-						/>
+				{/*
+				 * `kyc?.passenger ?? null` diz "não enviaste ainda", e isso é uma
+				 * afirmação sobre a pessoa. Uma falha de rede não a autoriza: com
+				 * a API em baixo, o ecrã diria que ninguém verificou a identidade
+				 * e mostraria o selo `NOT_SUBMITTED` — e é o facto que decide se
+				 * pode reservar ou vender lugares.
+				 */}
+				{kycPending ? (
+					<p className="mt-4 text-small text-muted">A carregar…</p>
+				) : null}
+
+				{kycError ? (
+					<div className="mt-4 flex flex-wrap items-center gap-3">
+						<p className="text-small text-muted">
+							Não foi possível carregar o estado da verificação.
+						</p>
+						<Button variant="secondary" onClick={() => refetchKyc()}>
+							Tentar de novo
+						</Button>
 					</div>
-					<div className="flex items-center justify-between gap-4">
-						<KycBadge
-							state={kyc?.driver ?? null}
-							what="identidade de motorista"
-						/>
-						<StatusStamp
-							status={kyc?.driver?.status ?? 'NOT_SUBMITTED'}
-						/>
+				) : null}
+
+				{!kycPending && !kycError ? (
+					<div className="mt-4 flex flex-col gap-3">
+						<div className="flex items-center justify-between gap-4">
+							<KycBadge
+								state={kyc?.passenger ?? null}
+								what="identidade de passageiro"
+							/>
+							<StatusStamp
+								status={kyc?.passenger?.status ?? 'NOT_SUBMITTED'}
+							/>
+						</div>
+						<div className="flex items-center justify-between gap-4">
+							<KycBadge
+								state={kyc?.driver ?? null}
+								what="identidade de motorista"
+							/>
+							<StatusStamp
+								status={kyc?.driver?.status ?? 'NOT_SUBMITTED'}
+							/>
+						</div>
 					</div>
-				</div>
+				) : null}
 			</Card>
 
 			<Card className="p-6">
@@ -236,6 +269,28 @@ function SecurityTab() {
 					noValidate
 					className="mt-5 flex flex-col gap-4"
 				>
+					{/*
+					 * O formulário nasce vazio e preenche-se quando a query
+					 * responde. Numa falha, os campos vazios parecem "não tens
+					 * contacto guardado" — e guardar assim apagava o contacto de
+					 * emergência que já existia. Aqui só se escreve depois de
+					 * uma resposta, boa ou má.
+					 */}
+					{contactError ? (
+						<div className="flex flex-wrap items-center gap-3">
+							<p className="text-small text-muted">
+								Não foi possível carregar o contacto guardado. Não
+								vais apagar nada: carrega outra vez para ver o que
+								está lá.
+							</p>
+							<Button
+								variant="secondary"
+								onClick={() => refetchContact()}
+							>
+								Tentar de novo
+							</Button>
+						</div>
+					) : null}
 					<Field
 						label="Nome"
 						value={name}
@@ -252,7 +307,12 @@ function SecurityTab() {
 						required
 					/>
 					<div className="flex justify-end pt-2">
-						<Button type="submit" disabled={save.isPending}>
+						<Button
+							type="submit"
+							// Sem resposta do servidor não se sabe o que está
+							// guardado, e guardar por cima pode apagá-lo.
+							disabled={save.isPending || contactError}
+						>
 							{save.isPending ? 'A guardar…' : 'Guardar contacto'}
 						</Button>
 					</div>

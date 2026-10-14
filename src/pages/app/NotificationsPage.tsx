@@ -29,7 +29,7 @@ const TYPE_META: Record<string, { label: string; className: string }> = {
 export function NotificationsPage() {
 	usePageTitle('Notificações');
 
-	const { data, isPending } = useQuery({
+	const { data, isPending, isError, refetch } = useQuery({
 		queryKey: qk.notifications,
 		queryFn: () => api.fetchNotifications({ limit: 50 }),
 	});
@@ -91,7 +91,26 @@ export function NotificationsPage() {
 				</div>
 			) : null}
 
-			{!isPending && rows.length === 0 ? (
+			{/*
+			 * Falha e "nada para avisar" são coisas diferentes. Sem este ramo,
+			 * uma API em baixo mostrava "Sem notificações" com o botão de
+			 * marcar tudo como lidas activo, e a pessoa acreditava que estava
+			 * em dia quando o que falhara fora a leitura.
+			 */}
+			{isError ? (
+				<EmptyState
+					icon={<BellOff size={32} />}
+					title="Não foi possível carregar as notificações"
+					description="O servidor não respondeu. Ainda podem existir avisos por ler."
+					action={
+						<Button variant="secondary" onClick={() => refetch()}>
+							Tentar de novo
+						</Button>
+					}
+				/>
+			) : null}
+
+			{!isPending && !isError && rows.length === 0 ? (
 				<EmptyState
 					icon={<BellOff size={32} />}
 					title="Sem notificações"
@@ -99,7 +118,7 @@ export function NotificationsPage() {
 				/>
 			) : null}
 
-			{rows.length > 0 ? (
+			{!isPending && !isError && rows.length > 0 ? (
 				<ul className="flex flex-col gap-2">
 					{rows.map((notification) => {
 						// Um tipo que este site não conhece mostra-se neutro com o

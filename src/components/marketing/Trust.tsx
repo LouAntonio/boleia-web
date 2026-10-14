@@ -31,7 +31,7 @@ const GUARANTEES = [
 	{
 		Icon: PhoneCall,
 		title: 'Paga-se na viatura',
-		body: 'Em dinheiro, ao motorista, na hora do embarque. Não há carteira no telemóvel nem pagamento por stranger.',
+		body: 'Em dinheiro, ao motorista, na hora do embarque. Não há carteira no telemóvel nem pagamento por outra pessoa.',
 	},
 ];
 

@@ -21,7 +21,7 @@ import { fmtLongDate, hhmm, fmtKz } from '../../lib/format';
 export function DriverBoardPage() {
 	usePageTitle('Painel do motorista');
 
-	const { data, isPending } = useMyRides();
+	const { data, isPending, isError, refetch } = useMyRides();
 	const { data: kyc } = useKycMe();
 	const userId = useAuthStore((s) => s.user?.id);
 
@@ -74,7 +74,25 @@ export function DriverBoardPage() {
 
 			{isPending ? <SkeletonLine className="h-40 w-full" /> : null}
 
-			{!isPending && rides.length === 0 ? (
+			{/*
+			 * Falha e "não publicaste nada" são coisas diferentes. Sem este
+			 * ramo, uma API em baixo mostrava o estado vazio e levava o
+			 * motorista a publicar uma boleia que já tinha.
+			 */}
+			{isError ? (
+				<EmptyState
+					icon={<Car size={32} />}
+					title="Não foi possível carregar as boleias"
+					description="O servidor não respondeu. As tuas boleias continuam publicadas."
+					action={
+						<Button variant="secondary" onClick={() => refetch()}>
+							Tentar de novo
+						</Button>
+					}
+				/>
+			) : null}
+
+			{!isPending && !isError && rides.length === 0 ? (
 				<EmptyState
 					icon={<Car size={32} />}
 					title="Ainda não publicaste nenhuma boleia"
@@ -87,7 +105,7 @@ export function DriverBoardPage() {
 				/>
 			) : null}
 
-			{active.length > 0 ? (
+			{!isError && active.length > 0 ? (
 				<ul className="flex flex-col gap-4">
 					{active.map((ride) => (
 						<li key={ride.id}>
@@ -100,7 +118,7 @@ export function DriverBoardPage() {
 				</ul>
 			) : null}
 
-			{closed.length > 0 ? (
+			{!isError && closed.length > 0 ? (
 				<section>
 					<h2 className="text-h3 text-ink">Terminadas</h2>
 					<ul className="mt-4 flex flex-col gap-3">
@@ -283,14 +301,27 @@ function RidePanel({
 											className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line p-3"
 										>
 											<div>
+												{/*
+												 * O nome do passageiro. A
+												 * `DriverPage` promete "ver o nome
+												 * de quem pede antes de decidir", e
+												 * o backend já devolve
+												 * `passenger: { id, name }` — só
+												 * faltava mostrar. Decidir a quem
+												 * se dá o lugar sem saber quem
+												 * é não era uma decisão, era uma
+												 * aposta.
+												 */}
 												<p className="text-body text-ink">
+													{booking.passenger?.name ??
+														'Passageiro'}
+												</p>
+												<p className="text-small text-muted">
 													{booking.seats}{' '}
 													{booking.seats === 1
 														? 'lugar'
-														: 'lugares'}
-												</p>
-												<p className="text-small text-muted">
-													{fmtKz(booking.amount)} em
+														: 'lugares'}{' '}
+													· {fmtKz(booking.amount)} em
 													dinheiro
 												</p>
 											</div>

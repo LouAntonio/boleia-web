@@ -13,13 +13,19 @@ import { StatusStamp } from '../../components/ui/StatusStamp';
 import { Modal } from '../../components/ui/Modal';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SkeletonLine } from '../../components/ui/Skeleton';
+import { PhotoPicker } from '../../components/rides/PhotoPicker';
 
 const EMPTY = { make: '', model: '', color: '', plate: '', seats: '' };
 
 export function VehiclesPage() {
 	usePageTitle('Viaturas');
 
-	const { data: vehicles, isPending } = useQuery({
+	const {
+		data: vehicles,
+		isPending,
+		isError,
+		refetch,
+	} = useQuery({
 		queryKey: qk.vehicles,
 		queryFn: api.fetchMyVehicles,
 	});
@@ -52,7 +58,25 @@ export function VehiclesPage() {
 				</div>
 			) : null}
 
-			{!isPending && list.length === 0 ? (
+			{/*
+			 * Falha e "não tens viaturas" são coisas diferentes: a segunda
+			 * manda a pessoa criar uma viatura que já existe. Sem este ramo,
+			 * uma API em baixo mostrava o estado vazio e nada mais.
+			 */}
+			{isError ? (
+				<EmptyState
+					icon={<BusFront size={32} />}
+					title="Não foi possível carregar as viaturas"
+					description="O servidor não respondeu. As tuas viaturas continuam registadas."
+					action={
+						<Button variant="secondary" onClick={() => refetch()}>
+							Tentar de novo
+						</Button>
+					}
+				/>
+			) : null}
+
+			{!isPending && !isError && list.length === 0 ? (
 				<EmptyState
 					icon={<BusFront size={32} />}
 					title="Sem viaturas registadas"
@@ -65,7 +89,7 @@ export function VehiclesPage() {
 				/>
 			) : null}
 
-			{list.length > 0 ? (
+			{!isPending && !isError && list.length > 0 ? (
 				<ul className="grid gap-4 sm:grid-cols-2">
 					{list.map((vehicle) => (
 						<li key={vehicle.id}>
@@ -142,6 +166,7 @@ export function VehiclesPage() {
 function AddVehicleDialog({ onClose }: { onClose: () => void }) {
 	const queryClient = useQueryClient();
 	const [form, setForm] = useState(EMPTY);
+	const [photoIds, setPhotoIds] = useState<string[]>([]);
 	const [errors, setErrors] = useState<Record<string, string | null>>({});
 
 	const create = useMutation({
@@ -161,15 +186,31 @@ function AddVehicleDialog({ onClose }: { onClose: () => void }) {
 	function submit(event: React.FormEvent) {
 		event.preventDefault();
 
+		/*
+		 * Os limites espelham `vehicles.service.ts`: `cleanSeats` aceita 2 a
+		 * 30 e `cleanPlate` exige 6 caracteres. A versão anterior validava
+		 * `seats >= 1` e matrícula não vazia, pelo que a pessoa preenchia tudo,
+		 * carregava em "Registar" e recebia um erro do servidor. A validação
+		 * do lado do servidor não se mexe — esta é só para não haver ida e
+		 * volta.
+		 */
+		const seats = Number(form.seats);
 		const problems: Record<string, string | null> = {
 			make: form.make.trim() ? null : 'Escreve a marca.',
 			model: form.model.trim() ? null : 'Escreve o modelo.',
 			color: form.color.trim() ? null : 'Escreve a cor.',
-			plate: form.plate.trim() ? null : 'Escreve a matrícula.',
-			seats:
-				Number(form.seats) >= 1
+			plate:
+				form.plate.trim().length >= 6
 					? null
-					: 'Uma viatura tem pelo menos um lugar.',
+					: 'A matrícula tem pelo menos 6 caracteres.',
+			seats:
+				Number.isInteger(seats) && seats >= 2 && seats <= 30
+					? null
+					: 'A lotação tem de estar entre 2 e 30.',
+			photos:
+				photoIds.length >= 3
+					? null
+					: 'Carrega pelo menos 3 fotografias da viatura.',
 		};
 
 		setErrors(problems);
@@ -180,9 +221,8 @@ function AddVehicleDialog({ onClose }: { onClose: () => void }) {
 			model: form.model.trim(),
 			color: form.color.trim(),
 			plate: form.plate.trim().toUpperCase(),
-			seats: Number(form.seats),
-			// Fotos são opcionais na v1: o backend aceita `photoIds` vazio.
-			photoIds: [],
+			seats,
+			photoIds,
 		});
 	}
 
@@ -240,11 +280,26 @@ function AddVehicleDialog({ onClose }: { onClose: () => void }) {
 				<Field
 					label="Lugares"
 					type="number"
-					min={1}
+					min={2}
+					max={30}
 					value={form.seats}
 					onChange={(e) => setForm({ ...form, seats: e.target.value })}
 					error={errors.seats}
 				/>
+
+				<PhotoPicker
+					ownerType="VEHICLE"
+					min={3}
+					max={6}
+					photoIds={photoIds}
+					onChange={setPhotoIds}
+					label="Fotografias da viatura"
+					hint="Frente, lateral e interior. São elas que a revisão avalia."
+				/>
+
+				{errors.photos ? (
+					<p className="text-small text-alert">{errors.photos}</p>
+				) : null}
 
 				<div className="flex gap-3">
 					<Button

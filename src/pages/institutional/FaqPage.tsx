@@ -142,12 +142,19 @@ const GROUPS: FaqGroup[] = [
 				a: 'Há um botão na página de entrada e no registo. Se já usas o telemóvel com a Boleia e depois entrares com o Google com outro email, são contas diferentes — é melhor usares sempre o mesmo caminho.',
 			},
 			{
+				/*
+				 * A resposta anterior prometia a lista de sessões activas por
+				 * dispositivo e a revogação de cada uma. A API tem o endpoint
+				 * (`GET /api/sessions`), mas não há ecrã nenhum que o mostre —
+				 * o perfil só oferece "Terminar sessão" para este dispositivo.
+				 * Descrever o que existe é melhor do que descrever o que não.
+				 */
 				q: 'Posso ver onde a minha conta está aberta?',
-				a: 'Sim. Na página de perfil, em Segurança, vê as sessões activas e o dispositivo de cada uma. Podes revogar qualquer uma.',
+				a: 'Ainda não. Há um botão para terminar a sessão neste dispositivo, no perfil, em Sessão. A lista de sessões por dispositivo e a revogação de cada uma ainda não estão no site — preferimos dizer-te isto a prometer-te um ecrã que não existe.',
 			},
 			{
 				q: 'Como apago a conta?',
-				a: 'Pedes o apagamento a partir do perfil. A conta fica marcada como eliminada, deixa de ser acessível e todas as sessões são revogadas de imediato.',
+				a: 'Ainda não há um botão para isso no site. Escreve para suporte@boleia.ao e pedimos confirmação antes de eliminar seja o que for. A conta fica marcada como eliminada, deixa de ser acessível e todas as sessões são revogadas de imediato.',
 			},
 			{
 				q: 'O que acontece aos meus dados quando apago a conta?',

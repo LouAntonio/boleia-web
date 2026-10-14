@@ -67,17 +67,22 @@ export function ProvincesMap() {
 							desenho de mapa.
 						</p>
 						<p className="mt-4 text-body text-muted">
-							Luanda, Benguela, Huambo, Malanje, Lubango e Viana
-							concentram o maior número de deslocações semanais, e são
-							por isso as rotas que abrem primeiro. As restantes
-							províncias entram à medida que houver motoristas com
-							viatura verificada a querer partir.
-						</p>
-
-						<p className="mt-8 border-l-2 border-brand pl-4 text-body text-muted">
-							Não estamos a mostrar rotas que ainda não existem.
-							Quando um destino não tem nenhuma boleia publicada, o
-							site diz que não tem.
+							{/*
+							 * Este parágrafo afirmava que Luanda, Benguela, Huambo,
+							 * Malanje, Lubango e Viana "concentram o maior número
+							 * de deslocações semanais". Não há nenhum dado de
+							 * deslocações no sistema — nem no esquema, nem num
+							 * ficheiro, nem numa fonte. Era uma afirmação inventada
+							 * sobre o país, numa página institucional cuja
+							 * credibilidade é o activo inteiro.
+							 *
+							 * A ordem das rotas a abrir é uma decisão operacional,
+							 * e toma-se com dados reais quando os houver.
+							 */}
+							As rotas abrem à medida que houver motoristas com
+							viatura verificada a querer partir. Uma província só tem
+							rotas quando alguém as publica — e quando um destino não
+							tem nenhuma boleia agendada, o site diz que não tem.
 						</p>
 					</div>
 

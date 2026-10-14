@@ -123,9 +123,17 @@ export function SecurityPage() {
 								comparar com uma lista de pessoas desaparecidas.
 							</LI>
 							<LI>
-								Não as mostramos a outros passageiros. Quem vê uma
-								reserva vê o nome e o telefone da pessoa com quem
-								partilha a viatura, e nada mais.
+								{/*
+								 * A resposta anterior dizia "o nome e o telefone".
+								 * O telefone nunca foi exposto: `listRideBookings`
+								 * devolve só `{ id, name }`, e o `RIDE_DETAIL_SELECT`
+								 * só tem `driver: { id, name }`. Prometer o telefone
+								 * seria descrever uma partilha de dados que o
+								 * código não faz.
+								 */}
+								Não as mostramos a outros passageiros. Quem partilha
+								uma viatura vê apenas o nome da outra pessoa, e nada
+								mais.
 							</LI>
 							<LI>
 								Não as usamos para decidir se uma pessoa pode voltar
@@ -153,7 +161,7 @@ export function SecurityPage() {
 								],
 								[
 									'Telefone',
-									'O motorista vê o telefone de quem reservou, e o passageiro vê o do motorista. São os dois lados da reserva.',
+									'Ninguém. Nem o motorista, nem o passageiro. Só tu, e a equipa técnica, num incidente.',
 								],
 								[
 									'Nome e matrícula da viatura',
@@ -173,16 +181,21 @@ export function SecurityPage() {
 								],
 								[
 									'Sessões activas e endereço IP',
-									'A pessoa, em qualquer momento, na página de perfil — e a equipa técnica, para segurança.',
+									'A pessoa e a equipa técnica, para segurança. A lista de sessões ainda não é mostrada no perfil.',
 								],
 							]}
 						/>
 
 						<P>
-							Tens acesso às tuas sessões e à lista de dispositivos
-							onde a tua conta está aberta, e podes revogar qualquer
-							uma delas a partir de qualquer página. Se não
-							reconheceres uma sessão, revoga-a e muda a senha.
+							/* * Isto era uma promessa de controlo: "revoga a sessão
+							e * muda a senha". O endpoint existe, o ecrã não. Dizer
+							* que a gestão de sessões está a caminho vale mais * do
+							que uma instrução que a pessoa não consegue * seguir. */
+							Ainda não há um ecrã onde possas ver as tuas sessões por
+							dispositivo nem revogar cada uma. O que existe é um
+							botão para terminar a sessão neste dispositivo. A gestão
+							de sessões por dispositivo está a caminho — se não
+							reconheceres uma sessão enquanto isso, muda a senha.
 						</P>
 					</Section>
 

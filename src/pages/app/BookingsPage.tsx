@@ -18,7 +18,7 @@ const OPEN: string[] = ['REQUESTED', 'CONFIRMED', 'IN_PROGRESS'];
 export function BookingsPage() {
 	usePageTitle('Reservas');
 
-	const { data: bookings, isPending } = useMyBookings();
+	const { data: bookings, isPending, isError, refetch } = useMyBookings();
 	const [cancelling, setCancelling] = useState<Booking | null>(null);
 
 	const open = (bookings ?? []).filter((b) => OPEN.includes(b.status));
@@ -42,7 +42,26 @@ export function BookingsPage() {
 				</div>
 			) : null}
 
-			{!isPending && open.length === 0 && past.length === 0 ? (
+			{/*
+			 * Falha e "não tens reservas" são coisas diferentes. Sem este ramo,
+			 * uma API em baixo mostrava "Sem reservas" e levava a pessoa a
+			 * concluir que tinha perdido as reservas — que continuam
+			 * exatamente onde estavam.
+			 */}
+			{isError ? (
+				<EmptyState
+					icon={<CalendarX2 size={32} />}
+					title="Não foi possível carregar as reservas"
+					description="O servidor não respondeu. As tuas reservas continuam registadas."
+					action={
+						<Button variant="secondary" onClick={() => refetch()}>
+							Tentar de novo
+						</Button>
+					}
+				/>
+			) : null}
+
+			{!isPending && !isError && open.length === 0 && past.length === 0 ? (
 				<EmptyState
 					icon={<CalendarX2 size={32} />}
 					title="Sem reservas"
@@ -55,7 +74,7 @@ export function BookingsPage() {
 				/>
 			) : null}
 
-			{open.length > 0 ? (
+			{!isError && open.length > 0 ? (
 				<ul className="flex flex-col gap-4">
 					{open.map((booking) => (
 						<li key={booking.id}>
@@ -68,7 +87,7 @@ export function BookingsPage() {
 				</ul>
 			) : null}
 
-			{past.length > 0 ? (
+			{!isError && past.length > 0 ? (
 				<section>
 					<h2 className="text-h3 text-ink">Anteriores</h2>
 					<ul className="mt-4 flex flex-col gap-3">

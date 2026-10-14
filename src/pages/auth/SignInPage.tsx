@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { AuthShell } from '../../components/layout/AuthShell';
 import { Field } from '../../components/ui/Field';
@@ -25,12 +25,20 @@ export function SignInPage() {
 	const [phoneBad, setPhoneBad] = useState<string | null>(null);
 	const [passwordBad, setPasswordBad] = useState<string | null>(null);
 
-	const signIn = useSignIn();
-	const navigate = useNavigate();
 	const location = useLocation();
 
-	// Onde a pessoa estava antes de a sessão a mandar para aqui.
-	const back = (location.state as RedirectState | null)?.from ?? '/app/explorar';
+	/*
+	 * Onde a pessoa estava antes de a sessão a mandar para aqui. Pode vir de
+	 * dois sítios com o mesmo nome: a `RequireAuth`, que o põe quando uma
+	 * sessão caduca a meio de uma pesquisa, e a `VerifyPage`, que o usa para
+	 * levar o filtro escolhido na landing até ao Explorar.
+	 *
+	 * Passa-se ao `useSignIn` em vez de se tratar aqui numa segunda callback:
+	 * a mutação trata-o no `onSuccess`, e o `onSuccess` desta página
+	 * sobrepunha-o. Por isso a navegação acontece num sítio só.
+	 */
+	const back = (location.state as RedirectState | null)?.from;
+	const signIn = useSignIn(back);
 
 	function handleSubmit(event: React.FormEvent) {
 		event.preventDefault();
@@ -41,12 +49,7 @@ export function SignInPage() {
 		setPasswordBad(passwordProblem);
 		if (phoneProblem || passwordProblem) return;
 
-		signIn.mutate(
-			{ phone: phone.trim(), password, rememberMe: true },
-			// `useSignIn` já leva a `/app/explorar` quando não há origem. Esta
-			// segunda callback só interessa quando a pessoa veio de dentro da app.
-			{ onSuccess: () => navigate(back, { replace: true }) },
-		);
+		signIn.mutate({ phone: phone.trim(), password, rememberMe: true });
 	}
 
 	return (

@@ -80,15 +80,34 @@ export function apiErrorMessage(
 	fallback = 'Algo correu mal. Tenta de novo.',
 ): string {
 	if (axios.isAxiosError<ApiErrorBody>(error)) {
-		const { message, code } = error;
+		/*
+		 * A mensagem do servidor vive em `error.response.data.message`.
+		 *
+		 * `axios.isAxiosError<ApiErrorBody>(error)` só tipa o *corpo da
+		 * resposta*; não transforma `error.message` na mensagem da API. A
+		 * versão anterior lia `const { message } = error`, que é a
+		 * descrição do axios — `"Request failed with status code 409"`. Como
+		 * `message.length > 0` é quase sempre verdadeiro, a função devolvia
+		 * isso e nunca chegava aos ramos de rede, e nenhuma das mensagens em
+		 * português escritas no backend para o caso ("Já existe uma conta com
+		 * este número.", "São precisas pelo menos 3 fotos", "A rejeição
+		 * precisa de um motivo") chegava ao utilizador.
+		 */
+		const serverMessage = error.response?.data?.message;
+		if (typeof serverMessage === 'string' && serverMessage.length > 0) {
+			return serverMessage;
+		}
 
-		if (typeof message === 'string' && message.length > 0) return message;
+		// O Nest manda `message` como array quando são vários erros de
+		// validação sobre o mesmo campo.
+		if (Array.isArray(serverMessage) && serverMessage.length > 0) {
+			return serverMessage.join(' ');
+		}
 
-		// O axios usa isto quando o pedido foi cancelado por timeout.
-		if (code === 'ECONNABORTED') {
+		if (error.code === 'ECONNABORTED') {
 			return 'O servidor demorou a responder. Tenta de novo.';
 		}
-		if (message === 'Network Error') {
+		if (!error.response) {
 			return 'Sem ligação ao servidor. Verifica a tua internet.';
 		}
 	}

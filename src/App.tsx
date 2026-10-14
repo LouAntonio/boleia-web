@@ -2,6 +2,9 @@ import { useEffect } from 'react';
 import { Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { UNAUTHORISED_EVENT } from './lib/axios';
+import { fetchSession } from './lib/api';
+import { toSessionUser } from './hooks/useAuth';
+import { useAuthStore } from './stores/useAuthStore';
 import { useThemeStore, applyTheme } from './stores/useThemeStore';
 
 import { MarketingLayout } from './components/layout/MarketingLayout';
@@ -83,11 +86,64 @@ function useSessionExpiryNotice(): void {
 }
 
 /**
- * O Google devolve a pessoa ao site depois do OAuth. O caminho volta a `/entrar`
- * e é o `SignIn` que troca o código pela sessão — por isso esta página não
- * desenha nada, só esconde o "a carregar" que o componente já põe no ecrã.
+ * O destino do redirect do Google.
+ *
+ * O fluxo é `window.location.href = <API>/api/auth/sign-in/social?...` — o
+ * browser sai do site, o better-auth trata com o Google, grava a sessão em
+ * cookie e redirecciona para aqui. O problema é que **um redirect de browser
+ * não expõe cabeçalhos de resposta ao JavaScript**: o `set-auth-token` que o
+ * `SignInPhone` vai buscar a `response.headers` nunca chega ao código. A
+ * versão anterior desta página limitava-se a mostrar "A concluir o teu
+ * registo…" e não navegava, com o `RedirectIfAuthed` à volta a depender de
+ * `useSession({enabled: Boolean(token)})` — token `null`, query nunca corre,
+ * guarda nunca redirecciona. Resultado: dead-end permanente, sem erro e sem
+ * forma de sair, para todos os que entram por esta porta.
+ *
+ * A saída é o cookie: o cliente já faz `withCredentials: true`, o
+ * better-auth grava a sessão em cookie, e `fetchSession()` lê-a. O token
+ * Bearer continua a ser o meio normal para o resto do site; aqui aceita-se
+ * entrar só com cookie, que é o único canal que sobrevive a um redirect.
  */
 function SocialCallbackPage() {
+	const navigate = useNavigate();
+	const setUser = useAuthStore((s) => s.setUser);
+
+	useEffect(() => {
+		let cancelled = false;
+
+		(async () => {
+			try {
+				const raw = await fetchSession();
+				const user = toSessionUser(raw);
+
+				if (cancelled) return;
+
+				if (!raw || !user.id) {
+					// O Google autorizou mas a sessão não chegou a ser criada
+					// (conta já existente com outro método, telefone por
+					// verificar, servidor em baixo). Levar a `/entrar` com
+					// explicação é melhor do que ficar aqui em silêncio.
+					toast.error(
+						'Não conseguimos concluir o registo com o Google. Tenta entrar com o teu número.',
+					);
+					navigate('/entrar', { replace: true });
+					return;
+				}
+
+				setUser(user);
+				navigate('/app/explorar', { replace: true });
+			} catch {
+				if (cancelled) return;
+				toast.error('Sem ligação ao servidor. Tenta de novo.');
+				navigate('/entrar', { replace: true });
+			}
+		})();
+
+		return () => {
+			cancelled = true;
+		};
+	}, [navigate, setUser]);
+
 	return (
 		<div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6">
 			<p className="text-body text-muted">A concluir o teu registo…</p>
@@ -144,11 +200,22 @@ export function App() {
 					<Route path="/verificar" element={<VerifyPage />} />
 					<Route path="/recuperar" element={<ForgotPasswordPage />} />
 					<Route path="/redefinir" element={<ResetPasswordPage />} />
-					<Route
-						path="/entrar/social/callback"
-						element={<SocialCallbackPage />}
-					/>
 				</Route>
+
+				{/*
+				 * Fica *fora* do grupo `RedirectIfAuthed`, de propósito. Esta
+				 * página existe para entregar à app uma sessão que o redirect do
+				 * Google acabou de criar. Se a guarda a rode, o
+				 * `RedirectIfAuthed` classificaria a pessoa antes de a página ter
+				 * hipótese de confirmar a sessão, e quem já tivesse um token
+				 * guardado seria atirado para `/app/explorar` com a sessão nova em
+				 * lugar nenhum. Sem guarda, o componente faz uma coisa só:
+				 * perguntar ao servidor se há sessão e decidir para onde ir.
+				 */}
+				<Route
+					path="/entrar/social/callback"
+					element={<SocialCallbackPage />}
+				/>
 
 				{/* A app. Tudo aqui exige sessão. */}
 				<Route

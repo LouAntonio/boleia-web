@@ -60,6 +60,28 @@ export function VerifyPage() {
 
 	const isReset = purpose === 'reset';
 
+	/** A rota escolhida na landing, se a pessoa veio de lá. */
+	function pickRouteFrom(source: URLSearchParams): {
+		from?: string;
+		to?: string;
+	} {
+		const de = source.get('de');
+		const para = source.get('para');
+		return {
+			...(de ? { from: de } : {}),
+			...(para ? { to: para } : {}),
+		};
+	}
+
+	/** Para onde o `SignIn` deve mandar depois de autenticar. */
+	function nextPathWithRoute(): string | undefined {
+		const route = pickRouteFrom(params);
+		const query = new URLSearchParams();
+		if (route.from) query.set('de', route.from);
+		if (route.to) query.set('para', route.to);
+		return query.toString() ? `/app/explorar?${query}` : undefined;
+	}
+
 	async function handleSubmit(event: React.FormEvent) {
 		event.preventDefault();
 
@@ -89,7 +111,21 @@ export function VerifyPage() {
 			}
 
 			toast.success('Conta confirmada. Já podes entrar.');
-			navigate('/entrar', { replace: true });
+			/*
+			 * A rota escolhida na landing viaja para o `SignIn` no `state`,
+			 * não na query string. Ela não é um segredo — é um `localityId` —
+			 * mas também não precisa de ficar no histórico do browser, e o
+			 * `state` é o sítio que o `SignIn` já usa para saber de onde veio
+			 * a pessoa. Sem isto, `?de=`/`?para=` morriam aqui e o filtro
+			 * escolhido na primeira página nunca chegava ao Explorar.
+			 */
+			navigate('/entrar', {
+				replace: true,
+				state: {
+					...pickRouteFrom(params),
+					from: nextPathWithRoute(),
+				},
+			});
 		} catch (err) {
 			setError(
 				apiErrorMessage(

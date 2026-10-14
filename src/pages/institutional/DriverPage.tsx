@@ -9,7 +9,6 @@ import {
 	Aside,
 } from '../../components/layout/legal/Prose';
 import { SeatGrid } from '../../components/ui/SeatGrid';
-import { Todo } from '../../components/layout/legal/LegalDoc';
 import { usePageMeta } from '../../hooks/usePageMeta';
 
 /**
@@ -54,7 +53,7 @@ export function DriverPage() {
 					<Fact
 						Icon={BadgeCheck}
 						term="Quem decide"
-						detail="Tu. Vês o nome e o número de cada passageiro, e aceitas, recusas ou cancelas quando quiseres."
+						detail="Tu. Vês o nome de cada passageiro, e aceitas, recusas ou cancelas quando quiseres."
 					/>
 				</div>
 			</section>
@@ -93,9 +92,10 @@ export function DriverPage() {
 						</UL>
 
 						<P>
-							A verificação demora <Todo />. Podes criar a conta e
-							registar a viatura enquanto isso — só a publicação fica
-							à espera.
+							A verificação é feita por uma equipa, e demora um tempo
+							que ainda não conseguimos prometer. Podes criar a conta
+							e registar a viatura enquanto isso — só a publicação
+							fica à espera.
 						</P>
 
 						<Aside>
@@ -162,10 +162,22 @@ export function DriverPage() {
 
 					<Section id="termos" title="O que te fica a dever a Boleia">
 						<UL>
-							<LI>Publicar e despublicar a rota quando quiseres.</LI>
+							{/*
+							 * "Despublicar" era uma promessa sem botão: não existe
+							 * `DELETE /api/rides/:id`, e cancelar é outra coisa —
+							 * encerra a corrida e avisa quem tinha reserva.
+							 *
+							 * O nome do passageiro e a identidade verificada são
+							 * verdade desde o Sprint 1: `listRideBookings` devolve
+							 * `passenger: { id, name }`, e o painel do motorista
+							 * mostra-o.
+							 */}
 							<LI>
-								Ver o nome e o número de quem pede antes de decidir.
+								Corrigir ou cancelar uma boleia já publicada. Os
+								passageiros com reserva confirmada são avisados de
+								que ficou sem serviço.
 							</LI>
+							<LI>Ver o nome de quem pede antes de decidir.</LI>
 							<LI>
 								Cancelar uma boleia já publicada. Os passageiros com
 								reserva confirmada são avisados de que ficou sem
@@ -181,7 +193,7 @@ export function DriverPage() {
 							E o que não te fica: não garantimos lugares cheios, nem
 							um ganho mínimo. A plataforma dá-te quem procura a tua
 							rota; quem decide com que frequência enches a viatura és
-							tu. com que frequência enches a viatura és tu.
+							tu.
 						</P>
 					</Section>
 				</Prose>
@@ -208,7 +220,7 @@ const STEPS = [
 	},
 	{
 		title: 'Publica a rota',
-		body: 'Escolhes de onde para onde, o dia, a hora de saída, os lugares e o preço por lugar. Podes pôr paragens pelo caminho.',
+		body: 'Escolhes de onde para onde, o dia, a hora de saída, os lugares e o preço por lugar.',
 	},
 	{
 		title: 'Decides quem sobe',

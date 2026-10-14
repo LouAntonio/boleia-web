@@ -146,15 +146,25 @@ export interface ProfileUpdate {
 }
 
 /**
- * Actualiza o perfil e devolve o utilizador actualizado.
+ * Actualiza o perfil e devolve **apenas os campos alterados**.
  *
- * O endpoint responde com o utilizador **em plano**, não embrulhado em `{ user }`
- * (`account.service.ts`). O cliente lia `data.user`, que era `undefined`, e o
- * `useAuth` escrevia isso no store: guardar o nome apagava o nome, o avatar e
- * o papel na sessão, sem erro nenhum.
+ * O endpoint responde com o utilizador em plano, não embrulhado em `{ user }`
+ * (`account.service.ts`) — e o `select` do serviço devolve só
+ * `{ id, name, surname, bio, phone }`. Não devolve `role`, `email`,
+ * `createdAt` nem `image`.
+ *
+ * A versão anterior tipava isto como `SessionUser` e o `useUpdateProfile`
+ * escrevia a resposta no store com `setUser(toSessionUser(user))`. O
+ * `toSessionUser` preenche o que falta com omissões seguras (`role: 'USER'`,
+ * `email: ''`, `createdAt: ''`), pelo que **guardar o nome despromovia o
+ * utilizador a USER e apagava o email do `localStorage`**. O envelope estava
+ * certo; a forma de escrever no store é que não era. Por isso o retorno é um
+ * parcial e a escrita é um merge.
  */
-export async function updateProfile(input: ProfileUpdate): Promise<SessionUser> {
-	const { data } = await apiClient.patch<SessionUser>(
+export async function updateProfile(
+	input: ProfileUpdate,
+): Promise<Partial<SessionUser>> {
+	const { data } = await apiClient.patch<Partial<SessionUser>>(
 		'/api/account/profile',
 		input,
 	);
@@ -542,11 +552,26 @@ function appendSignedParams(form: FormData, signature: UploadSignature): void {
 	}
 }
 
-/** Assinatura → Cloudinary → confirmar. Devolve o `mediaId` para guardar. */
+/** O que um upload bem-sucedido deixa na mão do cliente. */
+export interface UploadedAsset {
+	/** `Media.id` — UUID da nossa base. É o que o KYC e as viaturas guardam. */
+	mediaId: string;
+	/** `Media.publicId` — o que `fetchMediaUrl` procura. */
+	publicId: string;
+}
+
+/**
+ * Assinatura → Cloudinary → confirmar.
+ *
+ * Devolve os dois identificadores porque os dois são necessários e nenhum
+ * se obtém do outro: o `mediaId` vai no corpo do pedido de KYC ou de
+ * viatura, e o `publicId` só existe na assinatura — é o que o endpoint de
+ * URL procura para mostrar o ficheiro mais tarde.
+ */
 export async function uploadImage(
 	file: File,
 	ownerType: 'USER' | 'VEHICLE' | 'DRIVER_KYC' | 'PASSENGER_KYC',
-): Promise<string> {
+): Promise<UploadedAsset> {
 	const signature = await requestUploadSignature({ ownerType });
 
 	const form = new FormData();
@@ -564,7 +589,7 @@ export async function uploadImage(
 	}
 
 	await confirmUpload(signature.publicId);
-	return signature.mediaId;
+	return { mediaId: signature.mediaId, publicId: signature.publicId };
 }
 
 /**
