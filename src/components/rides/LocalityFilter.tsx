@@ -17,6 +17,22 @@ interface LocalityFilterProps {
 	/** Localidade a esconder, para não permitir origem igual a destino. */
 	exclude?: string;
 	placeholder?: string;
+	/**
+	 * Não buscar as localidades até alguém abrir o picker.
+	 *
+	 * Cada uso desta lista dispara 22 pedidos — as 21 províncias e uma
+	 * localidade por província. Numa página pública isso é um burst de 21
+	 * respostas que a maioria das visitas nunca precisa, porque a maioria não
+	 * chega a tocar no filtro.
+	 *
+	 * O default é `false` de propósito. Quem tem um valor já escolhido precisa
+	 * da lista disponível para mostrar o rótulo: o `ExplorePage` hidrata a
+	 * origem e o destino a partir da query string, e com `lazy` o gatilho
+	 * mostraria "Todos" com um filtro aplicado. Aqui — a landing page — não há
+	 * valor herdado nenhum, e esperar pela primeira interacção é o
+	 * comportamento certo.
+	 */
+	lazy?: boolean;
 }
 
 /**
@@ -46,13 +62,18 @@ export function LocalityFilter({
 	onChange,
 	exclude,
 	placeholder = 'Todos',
+	lazy = false,
 }: LocalityFilterProps) {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState('');
 	const [provinceId, setProvinceId] = useState('');
+	// Sem `lazy`, `activated` é `true` desde o início e o gancho não muda
+	// nada. Com `lazy`, só o primeiro `show()` o vira — e nesse momento o
+	// modal abre já a mostrar o "A carregar localidades…" que está mais abaixo.
+	const [activated, setActivated] = useState(!lazy);
 
-	const provinces = useProvinces();
-	const { localities, isLoading } = useAllLocalities();
+	const provinces = useProvinces(activated);
+	const { localities, isLoading } = useAllLocalities(activated);
 
 	const byId = useMemo(() => indexLocalities(localities), [localities]);
 	const provinceName = useMemo(
@@ -93,6 +114,10 @@ export function LocalityFilter({
 	function show() {
 		setQuery('');
 		setProvinceId('');
+		// Abrir é a interacção que justifica pagar as 21 peticiones. O modal
+		// mostra-se logo com o estado de carregamento que já existe; da segunda
+		// vez vem do cache.
+		setActivated(true);
 		setOpen(true);
 	}
 

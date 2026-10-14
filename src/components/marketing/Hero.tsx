@@ -3,9 +3,7 @@ import { ArrowRight, Search } from 'lucide-react';
 import { useState } from 'react';
 import { RoadTrack } from './RoadTrack';
 import { Button } from '../ui/Button';
-import { Select } from '../ui/Select';
-import { useAllLocalities } from '../../hooks/useLocalities';
-import { indexProvinces } from '../../hooks/useLocalities';
+import { LocalityFilter } from '../rides/LocalityFilter';
 
 /**
  * O percurso de exemplo.
@@ -31,31 +29,25 @@ export function Hero() {
 	const [destination, setDestination] = useState('');
 
 	/*
-	 * Localidades, não províncias.
+	 * O mesmo `LocalityFilter` do Explorar, não um `<select>` próprio.
 	 *
 	 * O `GET /api/rides` filtra por `ride_stop.localityId` e valida o valor
-	 * como UUID. A hero oferecia as 21 províncias e mandava o **nome** pelo
-	 * `?de=`, pelo que não havia forma de a escolha chegar ao filtro — e
-	 * ainda por cima o nome vinha da seed com o defecto do CP437
-	 * ("Bié" como `Bi\u251C\u00AE`).
+	 * como UUID, por isso o que viaja no `?de=` é sempre um id. A versão
+	 * anterior da hero oferecia as 21 províncias e mandava o **nome** pelo
+	 * `?de=` — duas coisas erradas ao mesmo tempo: um nome não é um UUID, e uma
+	 * província não é uma localidade.
 	 *
-	 * `GET /api/locality/provinces` e `.../localities` são rotas públicas
-	 * (`OptionalAuthGuard`), por isso a landing pode usá-las sem sessão. As
-	 * localities chegam por província, com o nome da província em cada linha,
-	 * porque "Caxito, Bengo" é muito mais útil do que "Caxito" repetido 30
-	 * vezes na lista.
+	 * Reutilizar o componente traz o que já estava feito e não se deve
+	 * duplicar: a pesquisa (306 localidades não se escolhem de outra maneira),
+	 * o rótulo com município e província, e o `exclude` cruzado, que impede
+	 * escolher origem igual a destino.
+	 *
+	 * `lazy` porque isto está numa página pública: cada instância deste filtro
+	 * custa 22 pedidos — as 21 províncias mais uma localidade por província —
+	 * e a maioria das visitas não toca em nenhum dos dois. Aqui não há valor
+	 * herdado a exibir (ao contrário do Explorar, que hidrata da query string),
+	 * por isso esperar pela primeira interacção é o comportamento certo.
 	 */
-	const { localities, isLoading } = useAllLocalities();
-	const provinceNames = indexProvinces(
-		localities.flatMap((l) => l.province ?? []),
-	);
-
-	const localOptions = localities.map((locality) => ({
-		value: locality.id,
-		label: provinceNames.get(locality.province?.id ?? '')
-			? `${locality.name} — ${provinceNames.get(locality.province?.id ?? '')}`
-			: locality.name,
-	}));
 
 	const ready = Boolean(origin && destination);
 
@@ -108,27 +100,21 @@ export function Hero() {
 					}}
 				>
 					<div className="grid gap-3 sm:grid-cols-2">
-						<Select
+						<LocalityFilter
 							label="De onde"
 							value={origin}
 							onChange={setOrigin}
-							options={localOptions}
-							placeholder={
-								isLoading
-									? 'A carregar…'
-									: 'Escolhe o ponto de partida'
-							}
-							className="bg-surface"
+							exclude={destination}
+							placeholder="Escolhe o ponto de partida"
+							lazy
 						/>
-						<Select
+						<LocalityFilter
 							label="Para onde"
 							value={destination}
 							onChange={setDestination}
-							options={localOptions}
-							placeholder={
-								isLoading ? 'A carregar…' : 'Escolhe o destino'
-							}
-							className="bg-surface"
+							exclude={origin}
+							placeholder="Escolhe o destino"
+							lazy
 						/>
 					</div>
 

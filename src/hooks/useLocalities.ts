@@ -11,11 +11,18 @@ import type { Locality, Province } from '../types/api';
  * as expõe a quem está dentro" — e o `enabled: Boolean(token)` que o acompanhava
  * era consequência disso. A consequence prática era que a landing page, que é
  * pública, não podia usar estes hooks.
+ *
+ * `enabled` existe para quem só quer a lista a partir do momento em que há
+ * interaccionamento — a landing page. Com `false` o React Query guarda a
+ * query sem a disparar, e o primeiro render não custa um pedido. O default é
+ * `true` para não mudar o comportamento de quem já contava com os dados
+ * disponíveis à mão.
  */
-export function useProvinces() {
+export function useProvinces(enabled = true) {
 	return useQuery({
 		queryKey: qk.provinces,
 		queryFn: api.listProvinces,
+		enabled,
 		// Não mudam durante uma sessão de dois dias.
 		staleTime: 1000 * 60 * 60 * 24,
 		gcTime: 1000 * 60 * 60 * 24,
@@ -55,13 +62,19 @@ export function useLocalityOptions(provinceId: string | null) {
  * A rota de localidades é pública (`OptionalAuthGuard`, que resolve a sessão
  * quando existe e não recusa quando não existe), por isso isto também serve
  * à landing page. O resultado fica em cache um dia — as localidades não mudam.
+ *
+ * `enabled` propaga para as duas pontas: para o pedido das províncias e para
+ * cada uma das 21 peticiones que dele dependem. Sem ele, abrir a landing page
+ * dispara 22 pedidos em paralelo antes de alguém ter tocado em seja no que
+ * for. Com ele, a lista só é buscada quando o `LocalityFilter` é activado.
  */
-export function useAllLocalities() {
-	const provinces = useProvinces();
+export function useAllLocalities(enabled = true) {
+	const provinces = useProvinces(enabled);
 	const results = useQueries({
 		queries: (provinces.data ?? []).map((province) => ({
 			queryKey: qk.localities(province.id),
 			queryFn: () => api.listLocalities(province.id),
+			enabled,
 			staleTime: 1000 * 60 * 60 * 24,
 			gcTime: 1000 * 60 * 60 * 24,
 		})),
@@ -69,8 +82,16 @@ export function useAllLocalities() {
 
 	return {
 		localities: results.flatMap((result) => result.data ?? []),
+		/*
+		 * `isLoading` e não `isPending`. Uma query desactivada está `isPending`
+		 * (nunca teve dados) mas não está `isFetching`, e `isLoading` é
+		 * precisamente `isPending && isFetching`. Com `enabled: false` isso dá
+		 * `false` — que é o que se quer: a lista não está "a carregar", está
+		 * "ainda não foi pedida". O `isPending` daria `true` e o modal
+		 * mostraria um spinner eterno em cima de uma lista que ninguém pediu.
+		 */
 		isLoading:
-			provinces.isPending || results.some((result) => result.isPending),
+			provinces.isLoading || results.some((result) => result.isLoading),
 	};
 }
 
