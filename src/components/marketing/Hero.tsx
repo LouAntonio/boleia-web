@@ -3,7 +3,10 @@ import { ArrowRight, Search } from 'lucide-react';
 import { useState } from 'react';
 import { RoadTrack } from './RoadTrack';
 import { Button } from '../ui/Button';
+import { Select } from '../ui/Select';
+import { SegmentedControl } from '../ui/SegmentedControl';
 import { LocalityFilter } from '../rides/LocalityFilter';
+import { useProvinces } from '../../hooks/useLocalities';
 
 /**
  * O percurso de exemplo.
@@ -24,32 +27,64 @@ const SAMPLE_ROUTE = [
 	{ name: 'Benguela', time: '18:10' },
 ];
 
+const MODES = [
+	{ value: 'interprovincial' as const, label: 'Interprovincial' },
+	{ value: 'intermunicipal' as const, label: 'Intermunicipal' },
+];
+
 export function Hero() {
+	const [mode, setMode] = useState<'interprovincial' | 'intermunicipal'>(
+		'interprovincial',
+	);
 	const [origin, setOrigin] = useState('');
 	const [destination, setDestination] = useState('');
+	const [provinceId, setProvinceId] = useState('');
 
 	/*
-	 * O mesmo `LocalityFilter` do Explorar, não um `<select>` próprio.
+	 * As 21 províncias só se pedem no modo intermunicipal.
 	 *
+	 * `useProvinces` aceita um `enabled`: fora desse modo o selector não está
+	 * no ecrã, e pedir a lista seria pagar 21 respostas para desenhar nada.
+	 * O mesmo `localities`, que já é `lazy` dentro do `LocalityFilter`.
+	 */
+	const municipal = mode === 'intermunicipal';
+	const provinces = useProvinces(municipal);
+
+	/*
 	 * O `GET /api/rides` filtra por `ride_stop.localityId` e valida o valor
 	 * como UUID, por isso o que viaja no `?de=` é sempre um id. A versão
 	 * anterior da hero oferecia as 21 províncias e mandava o **nome** pelo
 	 * `?de=` — duas coisas erradas ao mesmo tempo: um nome não é um UUID, e uma
 	 * província não é uma localidade.
 	 *
-	 * Reutilizar o componente traz o que já estava feito e não se deve
-	 * duplicar: a pesquisa (306 localidades não se escolhem de outra maneira),
-	 * o rótulo com município e província, e o `exclude` cruzado, que impede
-	 * escolher origem igual a destino.
-	 *
-	 * `lazy` porque isto está numa página pública: cada instância deste filtro
-	 * custa 22 pedidos — as 21 províncias mais uma localidade por província —
-	 * e a maioria das visitas não toca em nenhum dos dois. Aqui não há valor
-	 * herdado a exibir (ao contrário do Explorar, que hidrata da query string),
-	 * por isso esperar pela primeira interacção é o comportamento certo.
+	 * **A pesquisa a sério é da app autenticada**: sem sessão, o backend recusa
+	 * `/api/rides`. Por isso o hero não mostra resultados — leva a pessoa a
+	 * entrar já com o destino escolhido. O botão existe para isso, e para não
+	 * haver nenhum pedido disparado enquanto ela ainda não escolheu.
 	 */
-
 	const ready = Boolean(origin && destination);
+
+	/*
+	 * Trocar de modo tem de limpar a província, e escolher uma província tem de
+	 * limpar as localidades que ficaram fora dela.
+	 *
+	 * Sem isto o filtro activo era invisível: estava-se em "intermunicipal" com
+	 * uma origem em Benguela porque a província vinha do modo anterior, e a
+	 * pesquisa devolvia resultados que o rótulo não prometia.
+	 */
+	function changeMode(next: 'interprovincial' | 'intermunicipal') {
+		if (next === mode) return;
+		setMode(next);
+		setProvinceId('');
+		setOrigin('');
+		setDestination('');
+	}
+
+	function changeProvince(next: string) {
+		setProvinceId(next);
+		setOrigin('');
+		setDestination('');
+	}
 
 	return (
 		<section className="relative overflow-hidden border-b border-line bg-surface">
@@ -88,24 +123,58 @@ export function Hero() {
 					className="mt-10 max-w-2xl"
 					onSubmit={(event) => {
 						event.preventDefault();
-						// A pesquisa a sério é da app autenticada: sem sessão, o
-						// backend recusa `/api/rides`. Aqui leva a pessoa a entrar
-						// já com o destino escolhido.
 						const params = new URLSearchParams();
+						params.set('modo', mode);
+						if (municipal && provinceId)
+							params.set('provincia', provinceId);
 						if (origin) params.set('de', origin);
 						if (destination) params.set('para', destination);
-						window.location.href = `/criar-conta${
-							params.toString() ? `?${params}` : ''
-						}`;
+						window.location.href = `/criar-conta?${params.toString()}`;
 					}}
 				>
-					<div className="grid gap-3 sm:grid-cols-2">
+					{/*
+					 * Interprovincial ou intermunicipal, exactamente como na app.
+					 *
+					 * A diferença real não são duas pesquisas: `GET /api/rides`
+					 * filtra por localidade nos dois casos. O que muda é o universo
+					 * de escolha — no intermunicipal a origem e o destino têm de
+					 * cair dentro da mesma província. É isso que a província aqui
+					 * impõe aos dois `LocalityFilter` abaixo.
+					 */}
+					<SegmentedControl
+						label="Tipo de viagem"
+						options={MODES}
+						value={mode}
+						onChange={changeMode}
+						className="max-w-md"
+					/>
+
+					{municipal ? (
+						<div className="mt-4">
+							<Select
+								label="Província"
+								value={provinceId}
+								onChange={changeProvince}
+								options={(provinces.data ?? []).map((province) => ({
+									value: province.id,
+									label: province.name,
+								}))}
+								placeholder="Escolhe a província"
+								hint="A origem e o destino têm de ser dentro desta província."
+							/>
+						</div>
+					) : null}
+
+					<div className="mt-4 grid gap-3 sm:grid-cols-2">
 						<LocalityFilter
 							label="De onde"
 							value={origin}
 							onChange={setOrigin}
 							exclude={destination}
 							placeholder="Escolhe o ponto de partida"
+							restrictToProvinceId={
+								municipal ? provinceId || null : null
+							}
 							lazy
 						/>
 						<LocalityFilter
@@ -114,6 +183,9 @@ export function Hero() {
 							onChange={setDestination}
 							exclude={origin}
 							placeholder="Escolhe o destino"
+							restrictToProvinceId={
+								municipal ? provinceId || null : null
+							}
 							lazy
 						/>
 					</div>
@@ -121,12 +193,22 @@ export function Hero() {
 					<div className="mt-4 flex flex-wrap items-center gap-4">
 						<Button type="submit" size="lg" disabled={!ready}>
 							<Search size={18} aria-hidden="true" />
-							Encontrar boleia
+							{municipal && provinceId
+								? 'Encontrar boleia na província'
+								: 'Encontrar boleia'}
 						</Button>
 
+						{/*
+						 * Em modo municipal sem província escolhida, origem e
+						 * destino podem vir de duas províncias diferentes e a
+						 * busca não seria intermunicipal. O aviso diz isso em vez
+						 * de deixar a pessoa descobrir depois.
+						 */}
 						{!ready ? (
 							<p className="text-small text-muted">
-								Escolhe a origem e o destino para procurar.
+								{municipal && !provinceId
+									? 'Escolhe a província, a origem e o destino.'
+									: 'Escolhe a origem e o destino para procurar.'}
 							</p>
 						) : null}
 					</div>

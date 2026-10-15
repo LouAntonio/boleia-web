@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LogOut, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -319,16 +320,30 @@ function SecurityTab() {
 				</form>
 			</Card>
 
+			{/*
+			 * A sessão que sai é a deste dispositivo. As outras — outros
+			 * telemóveis, outro browser, um computador que ficou ligado numa
+			 * lancha — estão em "Conta e segurança", onde se veem todas e se
+			 * terminam uma a uma. Deixar esta pessoa a sair daqui sem nunca
+			 * saber que mais gente está dentro era o buraco.
+			 */}
 			<Card className="p-6">
 				<h2 className="text-h3 text-ink">Sessão</h2>
 				<p className="mt-1.5 text-small text-muted">
-					Sair termina a sessão neste dispositivo.
+					Sair termina a sessão neste dispositivo. Para ver e terminar as
+					restantes, vê a tua conta.
 				</p>
-				<div className="mt-5">
+				<div className="mt-5 flex flex-wrap items-center gap-3">
 					<Button variant="danger" onClick={() => signOut.mutate()}>
 						<LogOut size={16} aria-hidden="true" />
 						Terminar sessão
 					</Button>
+					<Link
+						to="/app/conta"
+						className="inline-flex min-h-11 items-center text-small text-brand-text underline-offset-4 hover:underline"
+					>
+						Conta e segurança
+					</Link>
 				</div>
 			</Card>
 		</div>

@@ -60,6 +60,7 @@ import { VehiclesPage } from './pages/app/VehiclesPage';
 import { KycPage } from './pages/app/KycPage';
 import { NotificationsPage } from './pages/app/NotificationsPage';
 import { ProfilePage } from './pages/app/ProfilePage';
+import { AccountPage } from './pages/app/AccountPage';
 
 /**
  * Uma sessão que caduca a meio de uma sessão de trabalho não pode ser um 401
@@ -237,6 +238,7 @@ export function App() {
 						element={<NotificationsPage />}
 					/>
 					<Route path="/app/perfil" element={<ProfilePage />} />
+					<Route path="/app/conta" element={<AccountPage />} />
 				</Route>
 
 				{/*

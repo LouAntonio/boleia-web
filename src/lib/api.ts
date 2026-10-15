@@ -74,6 +74,56 @@ export async function updateProfile(
 	return data;
 }
 
+/**
+ * Elimina a conta do utilizador autenticado.
+ *
+ * Vai para `POST /api/account/delete`, e não para o `delete-user` do
+ * better-auth: o endpoint do backend marca a conta como removida e apaga
+ * sessões, notificações e dispositivos de push numa transacção. O
+ * `delete-user` apagaria a linha do utilizador e deixaria os dispositivos
+ * registados a receber as notificações de cada corrida.
+ */
+export async function deleteAccount(): Promise<{ status: true }> {
+	const { data } = await apiClient.post<{ status: true }>('/api/account/delete');
+	return data;
+}
+
+/**
+ * Desvincula a conta Google.
+ *
+ * Não usa o `unlink-account` do better-auth porque `allowUnlinkingAll: false`
+ * recusa sempre que a linha do Google é a única. A rota do backend aplica a
+ * regra certa: só recusa quando **nenhuma** outra credencial fica disponível
+ * depois de desvincular.
+ */
+export async function unlinkGoogle(): Promise<{ status: true }> {
+	const { data } = await apiClient.post<{ status: true }>(
+		'/api/account/unlink-google',
+	);
+	return data;
+}
+
+/**
+ * Uma sessão activa, tal como o `list-sessions` do better-auth a devolve.
+ *
+ * Chama-se `SessionRow` e **não** `Session` porque já existe um tipo `Session`
+ * em `types/api.ts` com outro sentido (a sessão do utilizador autenticado).
+ * Interfaces em TypeScript fundem-se em vez de se substituírem, e um segundo
+ * `Session` não dava erro — dava uma personagem com os dois conjuntos de campos.
+ *
+ * `token` é o segredo de que a sessão precisa para ser revogada
+ * (`revoke-session` leva-o no corpo). Nunca é mostrado nem registado: só volta
+ * ao servidor quando a pessoa decide terminar aquela sessão.
+ */
+export interface SessionRow {
+	token: string;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+	expiresAt: string | Date;
+	ipAddress: string | null;
+	userAgent: string | null;
+}
+
 export async function fetchEmergencyContact(): Promise<EmergencyContact | null> {
 	const { data } = await apiClient.get<EmergencyContact | null>(
 		'/api/emergency-contact',

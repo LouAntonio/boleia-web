@@ -18,6 +18,23 @@ interface LocalityFilterProps {
 	exclude?: string;
 	placeholder?: string;
 	/**
+	 * Só oferecer localidades desta província.
+	 *
+	 * É o que distingue uma pesquisa intermunicipal de uma interprovincial: as
+	 * duas continuam a filtrar por localidade, e o modo só restringe o universo
+	 * de escolha. Sem isto, o rótulo "intermunicipal" seria uma promessa que a
+	 * pesquisa não cumpre — o filtro aceitaria uma origem em Benguela e outra
+	 * no Huambo e devolveria a viagem, como se fossem vizinhas.
+	 *
+	 * Espelha o `restrictToProvinceId` do `LocalityPicker` no telemóvel.
+	 *
+	 * Aplicado à lista **e** ao rótulo do valor já escolhido: se o que está
+	 * seleccionado cair fora da restrição, o filtro deixa de o oferecer mas o
+	 * gatilho continuava a mostrar o nome antigo, e a pessoa não sabia porque
+	 * é que a origem desapareceu do modal.
+	 */
+	restrictToProvinceId?: string | null;
+	/**
 	 * Não buscar as localidades até alguém abrir o picker.
 	 *
 	 * Cada uso desta lista dispara 22 pedidos — as 21 províncias e uma
@@ -63,10 +80,19 @@ export function LocalityFilter({
 	exclude,
 	placeholder = 'Todos',
 	lazy = false,
+	restrictToProvinceId = null,
 }: LocalityFilterProps) {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState('');
-	const [provinceId, setProvinceId] = useState('');
+	/*
+	 * A província pode vir de fora (`restrictToProvinceId`, no modo
+	 * intermunicipal) ou ser escolhida aqui dentro do modal. Quando vem de fora
+	 * é a fonte de verdade: trocar de província lá fora tem de mandar o modal
+	 * atrás, senão a pessoa vê um modal cheio de municípios da província
+	 * anterior e escolhe um que já não serve.
+	 */
+	const [ownProvinceId, setOwnProvinceId] = useState('');
+	const provinceId = restrictToProvinceId ?? ownProvinceId;
 	// Sem `lazy`, `activated` é `true` desde o início e o gancho não muda
 	// nada. Com `lazy`, só o primeiro `show()` o vira — e nesse momento o
 	// modal abre já a mostrar o "A carregar localidades…" que está mais abaixo.
@@ -81,7 +107,24 @@ export function LocalityFilter({
 		[provinces.data],
 	);
 
-	const selected = value ? byId.get(value) : undefined;
+	const selected = useMemo(() => {
+		if (!value) return undefined;
+		const found = byId.get(value);
+		/*
+		 * Se a escolha actual cai fora da província restringida, não a
+		 * despensa. Mostrar o nome de uma origem que o modal já não oferece é
+		 * pior do que mostrar o placeholder: a pessoa lê "Luanda" no gatilho e
+		 * não percebe porque é que Luanda desapareceu da lista.
+		 */
+		if (
+			found &&
+			restrictToProvinceId &&
+			found.provinceId !== restrictToProvinceId
+		) {
+			return undefined;
+		}
+		return found;
+	}, [value, byId, restrictToProvinceId]);
 	const selectedLabel = selected
 		? `${selected.municipality} · ${provinceName.get(selected.provinceId) ?? ''}`
 		: '';
@@ -113,7 +156,7 @@ export function LocalityFilter({
 
 	function show() {
 		setQuery('');
-		setProvinceId('');
+		setOwnProvinceId('');
 		// Abrir é a interacção que justifica pagar as 21 peticiones. O modal
 		// mostra-se logo com o estado de carregamento que já existe; da segunda
 		// vez vem do cache.
@@ -176,42 +219,53 @@ export function LocalityFilter({
 							/>
 						</div>
 
-						<div className="flex flex-wrap gap-2">
-							<button
-								type="button"
-								onClick={() => setProvinceId('')}
-								aria-pressed={provinceId === ''}
-								className={[
-									'rounded-full border px-3 py-1.5 text-small transition-colors',
-									provinceId === ''
-										? 'border-ink bg-ink text-surface'
-										: 'border-line text-muted hover:border-ink',
-								].join(' ')}
-							>
-								Todas
-							</button>
-							{provincesWithLocalities.map((province) => {
-								const active = provinceId === province.id;
-								return (
-									<button
-										key={province.id}
-										type="button"
-										onClick={() =>
-											setProvinceId(active ? '' : province.id)
-										}
-										aria-pressed={active}
-										className={[
-											'rounded-full border px-3 py-1.5 text-small transition-colors',
-											active
-												? 'border-ink bg-ink text-surface'
-												: 'border-line text-muted hover:border-ink',
-										].join(' ')}
-									>
-										{province.name}
-									</button>
-								);
-							})}
-						</div>
+						{/*
+						 * A escolha de província desaparece quando a restrição vem
+						 * de fora. Não é cosmético: oferecer aqui as 21
+						 * províncias deixaria a pessoa escolher uma que o filtro
+						 * de cima já impõe, e ela não encontraria nada dentro
+						 * dessa escolha.
+						 */}
+						{!restrictToProvinceId ? (
+							<div className="flex flex-wrap gap-2">
+								<button
+									type="button"
+									onClick={() => setOwnProvinceId('')}
+									aria-pressed={provinceId === ''}
+									className={[
+										'rounded-full border px-3 py-1.5 text-small transition-colors',
+										provinceId === ''
+											? 'border-ink bg-ink text-surface'
+											: 'border-line text-muted hover:border-ink',
+									].join(' ')}
+								>
+									Todas
+								</button>
+								{provincesWithLocalities.map((province) => {
+									const active = provinceId === province.id;
+									return (
+										<button
+											key={province.id}
+											type="button"
+											onClick={() =>
+												setOwnProvinceId(
+													active ? '' : province.id,
+												)
+											}
+											aria-pressed={active}
+											className={[
+												'rounded-full border px-3 py-1.5 text-small transition-colors',
+												active
+													? 'border-ink bg-ink text-surface'
+													: 'border-line text-muted hover:border-ink',
+											].join(' ')}
+										>
+											{province.name}
+										</button>
+									);
+								})}
+							</div>
+						) : null}
 
 						{isLoading ? (
 							<p className="flex items-center justify-center gap-2 py-8 text-body text-muted">
