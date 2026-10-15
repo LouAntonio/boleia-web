@@ -1,7 +1,6 @@
 import axios from 'axios';
 import type { AxiosInstance } from 'axios';
 import type { ApiErrorBody } from '../types/api';
-import { authClient } from './auth-client';
 
 /**
  * O tempo que uma chamada pode ficar pendente antes de ser dada como perdida.
@@ -62,11 +61,12 @@ apiClient.interceptors.response.use(
 		 * sessão que caducou — limpá-lo aqui apagaria a conta do utilizador da
 		 * tela enquanto ele ainda está a corrigir o formulário.
 		 *
-		 * Quem termina a sessão é o `authClient`, que é o dono dela. Este
-		 * ficheiro limita-se a avisar o `App`, que tem o router à mão.
+		 * **Não se revoga a sessão aqui.** Um 401 é um sinal, não um veredicto:
+		 * uma falha de rede ou um backend a reiniciar produzem um sem que a
+		 * sessão esteja morta, e revogar por causa disso tirava a pessoa de
+		 * dentro. Quem decide é o `useSession()`, que pergunta ao servidor.
 		 */
 		if (status === 401 && !url.includes('/api/auth/')) {
-			void authClient.signOut().catch(() => {});
 			window.dispatchEvent(new CustomEvent(UNAUTHORISED_EVENT));
 		}
 
