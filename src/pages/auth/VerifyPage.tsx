@@ -7,7 +7,7 @@ import { Field } from '../../components/ui/Field';
 import { Button } from '../../components/ui/Button';
 import { maskOtp } from '../../lib/phone';
 import { apiErrorMessage } from '../../lib/axios';
-import * as api from '../../lib/api';
+import { sendOtp, verifyOtp, type OtpPurpose } from '../../lib/phone-auth';
 
 /**
  * A confirmação do código.
@@ -29,7 +29,7 @@ export function VerifyPage() {
 	const navigate = useNavigate();
 
 	const phone = params.get('phone') ?? '';
-	const purpose: api.OtpPurpose =
+	const purpose: OtpPurpose =
 		params.get('purpose') === 'reset' ? 'reset' : 'signup';
 
 	const [code, setCode] = useState('');
@@ -93,7 +93,7 @@ export function VerifyPage() {
 		setBusy(true);
 		setError(null);
 		try {
-			const result = await api.verifyOtp(phone, code, purpose);
+			const result = await verifyOtp(phone, code, purpose);
 
 			if (isReset) {
 				if (!result.token) {
@@ -141,7 +141,7 @@ export function VerifyPage() {
 	async function handleResend() {
 		setResending(true);
 		try {
-			await api.sendOtp(phone, purpose);
+			await sendOtp(phone, purpose);
 			toast.success('Enviámos outro código.');
 		} catch (err) {
 			toast.error(

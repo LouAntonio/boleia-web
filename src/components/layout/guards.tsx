@@ -1,30 +1,34 @@
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuthStore } from '../../stores/useAuthStore';
-import { useSession } from '../../hooks/useAuth';
+import { authClient } from '../../lib/auth-client';
 import { Button } from '../ui/Button';
 
 /**
  * A guarda de `/app`.
  *
- * Três estados, e é a distinção entre eles que importa:
+ * **A diferença estrutural em relação a antes:** não há token em
+ * `localStorage` para ler de relance. A sessão vive num cookie que o
+ * JavaScript não vê, e a única forma de saber se é válida é perguntar ao
+ * servidor. Isto transforma o "a responder?" no estado normal de arranque de
+ * cada página protegida, em vez do caso raro que era quando havia token.
  *
- * 1. **Sem token** — não há sessão em curso. Vai logo para `/entrar`, sem
- *    animação e sem ecrã em branco pelo meio.
- * 2. **Com token, sessão ainda a validar** — mostra o esqueleto. Sem isto, cada
- *    F5 em `/app` piscava a página de entrada antes de voltar ao site.
- * 3. **Com token, sessão recusada** — o token morreu (expirou, foi revogado, a
- *    conta foi apagada). O `App` já limpou o store; falta o caminho.
+ * Três estados, e a distinção entre eles é o que importa:
  *
- * A query só corre quando há token (`enabled: Boolean(token)`), por isso o caso
- * 1 não fica à espera de nada.
+ * 1. **Sem sessão** — o servidor respondeu e não há cookie válido. Vai para
+ *    `/entrar`, com o `replace` para não deixar a rota protegida no histórico.
+ * 2. **Sessão ainda a confirmar** — o esqueleto. Sem isto, cada F5 em `/app`
+ *    piscava a página de entrada antes de voltar ao site.
+ * 3. **A rede falhou** — `error` sem sessão. Não é a mesma coisa que "a sessão
+ *    acabou": dizer "a sessão terminou" por causa de um timeout seria mentira,
+ *    e o botão de reentrar levaria a uma página que volta a deixá-la a sair.
  */
 export function RequireAuth({ children }: { children: ReactNode }) {
-	const token = useAuthStore((s) => s.token);
 	const location = useLocation();
-	const { isPending, isError } = useSession();
+	const { data: session, isPending, error } = authClient.useSession();
 
-	if (!token) {
+	// A resposta chegou e não há sessão. `error` com sessão nula não conta: o
+	// servidor pode ter falhado, e nesse caso mostramos o ecrã de rede abaixo.
+	if (!isPending && !session && !error) {
 		return (
 			<Navigate
 				to="/entrar"
@@ -38,28 +42,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
 	if (isPending) return <ShellSkeleton />;
 
-	/*
-	 * `isError` com token ainda guardado significa que a rede falhou, não que a
-	 * sessão morreu: o `useSession` já limpou o store no caso do 401. Dizer
-	 * "a sessão terminou" por causa de um timeout seria mentira, e o botão de
-	 * reentrar levaria a uma página que volta a deixá-la a sair.
-	 */
-	if (isError) {
-		return (
-			<div className="flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">
-				<h1 className="text-h2 text-ink">
-					Não foi possível confirmar a sessão
-				</h1>
-				<p className="max-w-md text-body text-muted">
-					O servidor não respondeu. Não faz mal — ainda tens sessão se ele
-					voltar a responder.
-				</p>
-				<Button onClick={() => window.location.reload()}>
-					Tentar de novo
-				</Button>
-			</div>
-		);
-	}
+	if (error && !session) return <SessionUnconfirmed />;
 
 	return <>{children}</>;
 }
@@ -72,25 +55,34 @@ export function RequireAuth({ children }: { children: ReactNode }) {
  * entrada à frente, e o próximo clique leva a um formulário cheio dos dados da
  * última pessoa que usou aquele computador.
  *
- * A sessão também é confirmada aqui, e não só pelo token. Com o token sozinho,
- * um token morto fazia as duas guardingas discordarem — `/entrar` dizia "entra",
- * `/app` dizia "a sessão terminou" — e a pessoa ficava a saltar entre as duas
- * sem sair do sítio.
+ * Quando o servidor não responde, mostra-se o formulário. Expulsar alguém do
+ * login por causa de um timeout seria pior do que o contrário: a pessoa vê o
+ * formulário, tenta outra vez, e o erro aparece no formulário.
  */
 export function RedirectIfAuthed({ children }: { children: ReactNode }) {
-	const token = useAuthStore((s) => s.token);
-	const { data, isPending } = useSession();
+	const { data: session, isPending } = authClient.useSession();
 
-	// A sessão ainda a confirmar e há token: o formulário não aparece, nem a
-	// app. Um esqueleto, que é o que evita o salto de página.
-	if (token && isPending) return <ShellSkeleton />;
+	if (isPending) return <ShellSkeleton />;
 
-	// `data` só é `null` quando o servidor confirmou que não há sessão. Não
-	// quando a rede falhou: nesse caso a pessoa vê o formulário e tenta outra
-	// vez, que é melhor do que ser expulsa sem razão.
-	if (data) return <Navigate to="/app/explorar" replace />;
+	if (session) return <Navigate to="/app/explorar" replace />;
 
 	return <>{children}</>;
+}
+
+/** O servidor não respondeu: a sessão continua, não se pode confirmá-la. */
+function SessionUnconfirmed() {
+	return (
+		<div className="flex min-h-screen flex-col items-center justify-center gap-6 px-6 text-center">
+			<h1 className="text-h2 text-ink">
+				Não foi possível confirmar a sessão
+			</h1>
+			<p className="max-w-md text-body text-muted">
+				O servidor não respondeu. Não faz mal — ainda tens sessão se ele
+				voltar a responder.
+			</p>
+			<Button onClick={() => window.location.reload()}>Tentar de novo</Button>
+		</div>
+	);
 }
 
 /** O esqueleto enquanto a sessão não se confirma. */

@@ -2,13 +2,12 @@ import { useEffect } from 'react';
 import { Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { UNAUTHORISED_EVENT } from './lib/axios';
-import { fetchSession } from './lib/api';
-import { toSessionUser } from './hooks/useAuth';
-import { useAuthStore } from './stores/useAuthStore';
+import { authClient } from './lib/auth-client';
 import { useThemeStore, applyTheme } from './stores/useThemeStore';
 
 import { MarketingLayout } from './components/layout/MarketingLayout';
 import { AppShell } from './components/layout/AppShell';
+import { AuthSync } from './components/layout/AuthSync';
 import { RequireAuth, RedirectIfAuthed } from './components/layout/guards';
 import { PageSuspense } from './components/layout/Lazy';
 import { lazyPage } from './components/layout/lazyPage';
@@ -68,8 +67,8 @@ import { ProfilePage } from './pages/app/ProfilePage';
  *
  * O interceptor do axios não sabe o que há à volta do pedido — está a meio de um
  * `useQuery`, de um formulário, de nada. Emite um evento, e é aqui que ele é
- * resolvido: a sessão já foi limpa pelo interceptor, falta a pessoa sair com uma
- * explicação em vez de a página ficar a pedir dados que já não vai receber.
+ * resolvido: falta a pessoa sair com uma explicação em vez de a página ficar a
+ * pedir dados que já não vai receber.
  */
 function useSessionExpiryNotice(): void {
 	const navigate = useNavigate();
@@ -88,41 +87,34 @@ function useSessionExpiryNotice(): void {
 /**
  * O destino do redirect do Google.
  *
- * O fluxo é `window.location.href = <API>/api/auth/sign-in/social?...` — o
- * browser sai do site, o better-auth trata com o Google, grava a sessão em
- * cookie e redirecciona para aqui. O problema é que **um redirect de browser
- * não expõe cabeçalhos de resposta ao JavaScript**: o `set-auth-token` que o
- * `SignInPhone` vai buscar a `response.headers` nunca chega ao código. A
- * versão anterior desta página limitava-se a mostrar "A concluir o teu
- * registo…" e não navegava, com o `RedirectIfAuthed` à volta a depender de
- * `useSession({enabled: Boolean(token)})` — token `null`, query nunca corre,
- * guarda nunca redirecciona. Resultado: dead-end permanente, sem erro e sem
- * forma de sair, para todos os que entram por esta porta.
+ * O fluxo é `authClient.signIn.social({ provider: 'google', callbackURL })`: o
+ * browser sai do site, o better-auth trata com o Google, grava a sessão **em
+ * cookie** e redirecciona para aqui.
  *
- * A saída é o cookie: o cliente já faz `withCredentials: true`, o
- * better-auth grava a sessão em cookie, e `fetchSession()` lê-a. O token
- * Bearer continua a ser o meio normal para o resto do site; aqui aceita-se
- * entrar só com cookie, que é o único canal que sobrevive a um redirect.
+ * Esta página continua a ser necessária e a ser um dead-end se falhar, porque
+ * **um redirect de browser não devolve nada ao JavaScript**: não há resposta, não
+ * há cabeçalho, não há token. A única coisa que sobrevive ao salto é o cookie —
+ * e é por isso que a sessão ser cookie-only não é só mais seguro, é o que torna
+ * este fluxo possível sem um servidor intermediário.
+ *
+ * Pergunta ao servidor com `authClient.getSession()`. Se não houver sessão, o
+ * Google autorizou mas algo no meio falhou (conta já existente com outro método,
+ * telefone por verificar, servidor em baixo) — e dizer isso é melhor do que
+ * ficar aqui em silêncio.
  */
 function SocialCallbackPage() {
 	const navigate = useNavigate();
-	const setUser = useAuthStore((s) => s.setUser);
 
 	useEffect(() => {
 		let cancelled = false;
 
 		(async () => {
 			try {
-				const raw = await fetchSession();
-				const user = toSessionUser(raw);
+				const { data } = await authClient.getSession();
 
 				if (cancelled) return;
 
-				if (!raw || !user.id) {
-					// O Google autorizou mas a sessão não chegou a ser criada
-					// (conta já existente com outro método, telefone por
-					// verificar, servidor em baixo). Levar a `/entrar` com
-					// explicação é melhor do que ficar aqui em silêncio.
+				if (!data?.user?.id) {
 					toast.error(
 						'Não conseguimos concluir o registo com o Google. Tenta entrar com o teu número.',
 					);
@@ -130,7 +122,6 @@ function SocialCallbackPage() {
 					return;
 				}
 
-				setUser(user);
 				navigate('/app/explorar', { replace: true });
 			} catch {
 				if (cancelled) return;
@@ -142,7 +133,7 @@ function SocialCallbackPage() {
 		return () => {
 			cancelled = true;
 		};
-	}, [navigate, setUser]);
+	}, [navigate]);
 
 	return (
 		<div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6">
@@ -167,6 +158,11 @@ export function App() {
 
 	return (
 		<PageSuspense>
+			{/*
+			 * Escreve o utilizador da sessão no store. Montado aqui e em mais
+			 * lado nenhum — a sessão vive no `authClient`, o store é a sombra.
+			 */}
+			<AuthSync />
 			<Routes>
 				{/* Público */}
 				<Route element={<MarketingLayout />}>

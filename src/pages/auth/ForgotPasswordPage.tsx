@@ -6,7 +6,7 @@ import { Field } from '../../components/ui/Field';
 import { Button } from '../../components/ui/Button';
 import { maskPhone, phoneError, phonePlaceholder } from '../../lib/phone';
 import { apiErrorMessage } from '../../lib/axios';
-import * as api from '../../lib/api';
+import { forgotPassword } from '../../lib/phone-auth';
 
 export function ForgotPasswordPage() {
 	const navigate = useNavigate();
@@ -26,7 +26,7 @@ export function ForgotPasswordPage() {
 
 		setBusy(true);
 		try {
-			await api.forgotPassword(phone.trim());
+			await forgotPassword(phone.trim());
 
 			/*
 			 * O backend responde com a mesma coisa exista ou não a conta, para não

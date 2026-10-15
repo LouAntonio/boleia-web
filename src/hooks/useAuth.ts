@@ -1,118 +1,40 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { apiErrorMessage } from '../lib/axios';
-import { tokenFrom } from '../lib/auth';
-import { qk } from '../lib/queryClient';
+import { authClient, AuthRequestError, sessionUserFrom } from '../lib/auth-client';
+import { signInPhone, type PhoneCredentials } from '../lib/phone-auth';
 import * as api from '../lib/api';
-import { useAuthStore, isAppRole } from '../stores/useAuthStore';
-import type { AppRole, SessionUser } from '../types/api';
+import { useAuthStore } from '../stores/useAuthStore';
+import type { SessionUser } from '../types/api';
 
 /**
- * O backend devolve o utilizador sem `surname` garante em todos os caminhos e
- * com `role` às vezes em minúsculas. Isto normaliza uma vez, aqui, em vez de
- * cada componente lidar com `user.role === 'driver' || user.role === 'DRIVER'`.
- */
-export function toSessionUser(raw: unknown): SessionUser {
-	const data = (raw ?? {}) as Record<string, unknown>;
-	const role = String(data.role ?? 'USER').toUpperCase();
-
-	return {
-		id: String(data.id ?? ''),
-		name: String(data.name ?? ''),
-		surname: (data.surname as string | null) ?? null,
-		email: String(data.email ?? ''),
-		emailVerified: Boolean(data.emailVerified),
-		image: (data.image as string | null) ?? null,
-		phone: (data.phone as string | null) ?? null,
-		role: isAppRole(role) ? (role as AppRole) : 'USER',
-		banned: Boolean(data.banned),
-		createdAt: (data.createdAt as string) ?? '',
-	};
-}
-
-/**
- * A sessão, revalidada do servidor a cada arranque.
+ * Reexportado por compatibilidade com os consumidores antigos.
  *
- * O token no `localStorage` diz se há alguém; esta query diz se ainda é
- * verdade. A diferença importa: um token revogado de outro sítio, uma conta
- * apagada, um limite de sessões — nada disso se percebe pelo token, e sem esta
- * query o site mostraria o perfil de uma conta que já não existe.
- *
- * Uma sessão que o servidor recusa limpa o store. Não é um detalhe: `RequireAuth`
- * manda quem não tem sessão para `/entrar`, e `RedirectIfAuthed` devolve à app
- * quem tem token. Se o token morre mas fica guardado, as duas guardingas
- * classificam a pessoa em sentidos opostos e o site nunca sai do lugar.
+ * A normalização passou para `lib/auth-client.ts`, ao lado do cliente que traz
+ * o utilizador — mas vários ficheiros importavam este nome daqui.
  */
-export function useSession() {
-	const token = useAuthStore((s) => s.token);
-	const clearAuth = useAuthStore((s) => s.clearAuth);
-	const setUser = useAuthStore((s) => s.setUser);
+export { sessionUserFrom };
 
-	return useQuery({
-		queryKey: qk.session,
-		queryFn: async () => {
-			try {
-				const user = await api.fetchSession();
-
-				if (!user) {
-					clearAuth();
-					return null;
-				}
-
-				// A sessão pode ter mudado do lado do servidor — o papel muda, a
-				// conta é banida — e o `token` sozinho não conta essa história.
-				setUser(toSessionUser(user));
-				return toSessionUser(user);
-			} catch (error) {
-				// Um 401 é o token que já não serve. Qualquer outra falha é a
-				// rede: limpa-se na mesma, porque uma sessão que não se consegue
-				// confirmar é uma sessão em que não se deve confiar, e o
-				// `isError` da guarda mostra o que aconteceu.
-				if (
-					(error as { response?: { status?: number } })?.response
-						?.status === 401
-				) {
-					clearAuth();
-				}
-				throw error;
-			}
-		},
-		enabled: Boolean(token),
-		// Sem `retry`: um 401 é a resposta definitiva, e tentar outra vez só
-		// atrasa o redireccionamento para `/entrar`.
-		retry: false,
-		staleTime: 1000 * 60 * 5,
-	});
-}
-
-/** Login por telefone e senha. */
+/** A sessão, revalidada do servidor a cada arranque. */
 export function useSignIn(redirectTo?: string) {
-	const setAuth = useAuthStore((s) => s.setAuth);
+	const clearAuth = useAuthStore((s) => s.clearAuth);
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
 	return useMutation({
-		mutationFn: async (input: api.PhoneCredentials) => {
-			const response = await api.signInPhone(input);
-			const token = tokenFrom(response.headers);
-
-			/*
-			 * Sem token não há sessão utilizável. Falhar aqui é melhor do que
-			 * deixar o site "autenticado" sem credencial — que é como se
-			 * aparece uma app que entra e falha em cada pedido.
-			 */
-			if (!token) {
-				throw new Error('O servidor não devolveu um token de sessão.');
-			}
-
-			return {
-				token,
-				user: toSessionUser(response.data?.user),
-			};
+		mutationFn: async (input: PhoneCredentials) => {
+			const response = await signInPhone(input);
+			return sessionUserFrom(response.user);
 		},
-		onSuccess: ({ token, user }) => {
-			setAuth(token, user);
+		onSuccess: () => {
+			/*
+			 * A sessão fica em cookie, e quem a guarda é o `authClient`. O store
+			 * é esvaziado aqui para que o `AuthSync` escreva o utilizador novo em
+			 * cima do que lá estivesse, e não para "terminar sessão" — o que
+			 * isto termina é a projecção de leitura de quem saiu.
+			 */
+			clearAuth();
 			queryClient.clear();
 			toast.success('Entraste na tua conta');
 			/*
@@ -138,10 +60,10 @@ export function useSignIn(redirectTo?: string) {
 				?.status;
 
 			/*
-			 * 403 aqui é o 403 do `phone/sign-in`: a conta existe mas o telefone
-			 * ainda não foi verificado. Não é senha errada, e dizer "senha
-			 * errada" seria mandar a pessoa a tentar de novo uma senha que está
-			 * certa.
+			 * 403 aqui é o 403 do `phone/sign-in`: a conta existe, a senha
+			 * está certa, mas o telefone ainda não foi verificado. Não é
+			 * senha errada, e dizer "senha errada" seria mandar a pessoa a
+			 * tentar de novo uma senha que está certa.
 			 */
 			if (status === 403) {
 				toast.error('Falta verificar o teu telefone. Pede um código novo.');
@@ -154,7 +76,7 @@ export function useSignIn(redirectTo?: string) {
 	});
 }
 
-/** Termina a sessão, local e no servidor. */
+/** Termina a sessão, no servidor e localmente. */
 export function useSignOut() {
 	const clearAuth = useAuthStore((s) => s.clearAuth);
 	const queryClient = useQueryClient();
@@ -163,20 +85,21 @@ export function useSignOut() {
 	return useMutation({
 		mutationFn: async () => {
 			try {
-				await api.signOut();
+				await authClient.signOut();
 			} catch {
 				/*
 				 * Um logout que falha no servidor não impede o logout local: a
-				 * sessão expira sozinha e o token deixa de servir. Entregar a
-				 * pessoa à página de entrada com um erro de rede seria pior do
-				 * que a deixar sair em silêncio.
+				 * sessão expira sozinha e deixa de servir. Entregar a pessoa à
+				 * página de entrada com um erro de rede seria pior do que a
+				 * deixar sair em silêncio.
 				 */
 			}
 		},
 		onSettled: () => {
 			clearAuth();
 			// A cache é da conta que está a sair. Mantê-la mostrava os dados da
-			// conta anterior ao próximo que entrar.
+			// conta anterior ao próximo que entrar. A sessão não está aqui — o
+			// `signOut` acima já a revogou.
 			queryClient.clear();
 			toast.success('Sessão terminada');
 			navigate('/', { replace: true });
@@ -184,26 +107,34 @@ export function useSignOut() {
 	});
 }
 
-/** actualiza o perfil e reflecte logo na sessão. */
+/** Actualiza o perfil e reflecte logo na sessão. */
 export function useUpdateProfile() {
 	const setUser = useAuthStore((s) => s.setUser);
-	const queryClient = useQueryClient();
+	// O atom da sessão é partilhado, por isso subscrever aqui não gera um
+	// pedido extra: o `useSession` do `App` já o está a consultar.
+	const { refetch: refetchSession } = authClient.useSession();
 
 	return useMutation({
 		mutationFn: api.updateProfile,
-		onSuccess: (patch) => {
+		onSuccess: async (patch) => {
 			/*
 			 * Merge, não substituição. `updateProfile` devolve só o que o
 			 * servidor mudou (`{id, name, surname, bio, phone}`); tratar isso
-			 * como a sessão inteira fazia `toSessionUser` preencher o resto com
+			 * como a sessão inteira fazia o store preencher o resto com
 			 * omissões — `role: 'USER'`, `email: ''`, `createdAt: ''` — e
-			 * guardar o nome despromovia o utilizador a USER no store e no
-			 * `localStorage`. Só o que veio do servidor muda; o resto fica.
+			 * guardar o nome despromovia o utilizador a USER na store. Só o que
+			 * veio do servidor muda; o resto fica.
 			 */
-			const current = queryClient.getQueryData<SessionUser>(qk.session);
-			const merged = { ...(current ?? {}), ...patch } as SessionUser;
-			setUser(merged);
-			queryClient.setQueryData(qk.session, merged);
+			setUser(
+				mergePatch(
+					useAuthStore.getState().user,
+					patch as Partial<SessionUser>,
+				),
+			);
+			// E depois perguntamos ao servidor, que é quem manda. O store foi
+			// corrigido para não piscar o nome velho; se o `refetch` trouxer
+			// outra coisa, é o servidor a dizer a verdade e o `AuthSync` escreve.
+			await refetchSession();
 			toast.success('Perfil guardado');
 		},
 		onError: (error: unknown) => {
@@ -213,3 +144,14 @@ export function useUpdateProfile() {
 		},
 	});
 }
+
+/** Junta o que o servidor mudou à sessão conhecida. */
+function mergePatch(
+	current: SessionUser | null,
+	patch: Partial<SessionUser>,
+): SessionUser | null {
+	if (!current) return { ...(patch as SessionUser) };
+	return { ...current, ...patch };
+}
+
+export { AuthRequestError };

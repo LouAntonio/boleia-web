@@ -6,7 +6,7 @@ import { Field } from '../../components/ui/Field';
 import { Button } from '../../components/ui/Button';
 import { passwordError } from '../../lib/phone';
 import { apiErrorMessage } from '../../lib/axios';
-import * as api from '../../lib/api';
+import { resetPassword } from '../../lib/phone-auth';
 
 interface ResetState {
 	token?: string;
@@ -61,7 +61,7 @@ export function ResetPasswordPage() {
 
 		setBusy(true);
 		try {
-			await api.resetPassword(state?.token as string, password);
+			await resetPassword(state?.token as string, password);
 			toast.success('Senha mudada. Entra com a nova.');
 			navigate('/entrar', { replace: true });
 		} catch (err) {

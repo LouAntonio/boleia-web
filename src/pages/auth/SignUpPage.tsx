@@ -7,7 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { GoogleButton } from '../../components/auth/GoogleButton';
 import { Divider } from '../../components/auth/Divider';
 import { ConsentRow } from '../../components/auth/ConsentRow';
-import * as api from '../../lib/api';
+import { signUpPhone } from '../../lib/phone-auth';
 import {
 	maskPhone,
 	phoneError,
@@ -62,7 +62,7 @@ export function SignUpPage() {
 
 		setBusy(true);
 		try {
-			await api.signUpPhone({
+			await signUpPhone({
 				phone: phone.trim(),
 				password,
 				name: name.trim(),

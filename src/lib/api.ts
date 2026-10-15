@@ -4,6 +4,13 @@
  * Um único ficheiro de propósito: emendar o contrato da API é uma tarefa, e
  * espalhar as assinaturas por treze pastas transforma-a em caça ao tesouro.
  * Os componentes nunca chamam o axios — usam estas funções.
+ *
+ * **Excepto a autenticação, que já não vive aqui.** Login, registo, OTP,
+ * recuperação de senha e OAuth vão pelo `authClient` do better-auth
+ * (`lib/auth-client.ts`) e, no caso dos endpoints de telefone, pelo
+ * `lib/phone-auth.ts`. Ficam fora porque pertencem a outro cliente HTTP, com
+ * outra forma de erro: misturá-los neste ficheiro obrigaria cada consumidor de
+ * auth a perceber as duas.
  */
 import { apiClient } from './axios';
 import type {
@@ -23,110 +30,6 @@ import type {
 	UploadSignature,
 	Vehicle,
 } from '../types/api';
-
-/* ---------- Sessão ---------- */
-
-/**
- * Sessão actual.
- *
- * Devolve `null` e não um erro quando não há sessão — é uma resposta
- * correcta, não uma falha. É por isso que quem chama tem de tratar o `null`.
- */
-export async function fetchSession(): Promise<SessionUser | null> {
-	const { data } = await apiClient.get<{ user: SessionUser } | null>(
-		'/api/auth/get-session',
-	);
-	return data?.user ?? null;
-}
-
-export async function signOut(): Promise<void> {
-	await apiClient.post('/api/auth/sign-out');
-}
-
-/* ---------- Autenticação por telefone ---------- */
-
-export interface PhoneCredentials {
-	phone: string;
-	password: string;
-	rememberMe?: boolean;
-}
-
-export async function signInPhone(credentials: PhoneCredentials) {
-	return apiClient.post('/api/auth/phone/sign-in', credentials);
-}
-
-export interface SignUpPhoneInput {
-	phone: string;
-	password: string;
-	name: string;
-	surname?: string;
-	email?: string;
-	termsAccepted: boolean;
-	marketingAccepted?: boolean;
-}
-
-/**
- * Registo por telefone.
- *
- * O backend responde `{ status: true }` **sem** abrir sessão: cria a conta com um
- * email sintético e fica à espera do código de 6 dígitos. Por isso o
- * `Register` não entra no site — manda para `/verificar`.
- */
-export async function signUpPhone(input: SignUpPhoneInput) {
-	return apiClient.post<{ status: boolean }>('/api/auth/phone/sign-up', input);
-}
-
-export type OtpPurpose = 'signup' | 'reset';
-
-export async function sendOtp(phone: string, purpose: OtpPurpose) {
-	return apiClient.post<{ status: boolean }>('/api/auth/phone/otp/send', {
-		phone,
-		purpose,
-	});
-}
-
-/**
- * Confirma o código.
- *
- * Com `purpose: 'reset'` devolve um `token` de recuperação que só é válido para
- * a chamada seguinte a `/reset-password` — o porquê de o `Recuperar` o passar
- * pelo `state` da rota em vez de o guardar.
- */
-export async function verifyOtp(
-	phone: string,
-	code: string,
-	purpose: OtpPurpose,
-): Promise<{ token?: string; expiresAt?: string }> {
-	const { data } = await apiClient.post<{ token?: string; expiresAt?: string }>(
-		'/api/auth/phone/otp/verify',
-		{ phone, code, purpose },
-	);
-	return data ?? {};
-}
-
-export async function forgotPassword(phone: string, redirectTo?: string) {
-	return apiClient.post('/api/auth/forgot-password', { phone, redirectTo });
-}
-
-export async function resetPassword(token: string, newPassword: string) {
-	return apiClient.post('/api/auth/reset-password', {
-		token,
-		newPassword,
-	});
-}
-
-/* ---------- Google ---------- */
-
-/**
- * Início do login social.
- *
- * Vai direto para o Google: o better-auth redirecciona o browser para a página
- * de autorização e devolve o utilizador a `/entrar/social/callback`. Por isso
- * isto não é um `await` com resultado — é uma navegação.
- */
-export function startGoogleSignIn(redirectTo: string): void {
-	window.location.href = `${import.meta.env.VITE_API_URL ?? 'http://localhost:3000'}/api/auth/sign-in/social?provider=google&callbackURL=${encodeURIComponent(window.location.origin + redirectTo)}`;
-}
 
 /* ---------- Perfil ---------- */
 

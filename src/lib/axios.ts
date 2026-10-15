@@ -1,7 +1,7 @@
 import axios from 'axios';
-import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
+import type { AxiosInstance } from 'axios';
 import type { ApiErrorBody } from '../types/api';
-import { useAuthStore } from '../stores/useAuthStore';
+import { authClient } from './auth-client';
 
 /**
  * O tempo que uma chamada pode ficar pendente antes de ser dada como perdida.
@@ -26,13 +26,16 @@ export const apiClient: AxiosInstance = axios.create({
 	withCredentials: true,
 });
 
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-	const token = useAuthStore.getState().token;
-	if (token) {
-		config.headers.set('Authorization', `Bearer ${token}`);
-	}
-	return config;
-});
+/*
+ * Não há interceptor de pedido. A sessão vive num cookie que o servidor
+ * plantou no login, o browser envia-o sozinho em cada pedido (por causa do
+ * `withCredentials` acima), e o `AuthGuard` do backend lê-o de lá.
+ *
+ * O interceptor que punha `Authorization: Bearer <token>` lido do
+ * `localStorage` saiu. Não é perda de função — o cookie transporta a mesma
+ * sessão — é a condição em que o token deixa de ser legível por JavaScript e,
+ * portanto, deixa de poder ser roubado por um XSS.
+ */
 
 /*
  * Eventos em vez de um redireccionamento.
@@ -58,9 +61,12 @@ apiClient.interceptors.response.use(
 		 * "esta senha está errada", que é uma mensagem de formulário e não uma
 		 * sessão que caducou — limpá-lo aqui apagaria a conta do utilizador da
 		 * tela enquanto ele ainda está a corrigir o formulário.
+		 *
+		 * Quem termina a sessão é o `authClient`, que é o dono dela. Este
+		 * ficheiro limita-se a avisar o `App`, que tem o router à mão.
 		 */
 		if (status === 401 && !url.includes('/api/auth/')) {
-			useAuthStore.getState().clearAuth();
+			void authClient.signOut().catch(() => {});
 			window.dispatchEvent(new CustomEvent(UNAUTHORISED_EVENT));
 		}
 
