@@ -13,14 +13,21 @@
  *
  * Os dois vocabulários são distintos de propósito:
  *
- * - `de` / `para` — ids de **município** (modo intermunicipal);
- * - `deProvincia` / `paraProvincia` — ids de **província** (interprovincial);
+ * - `de` / `para` — **códigos** de município (`huambo.catabola`, modo
+ *   intermunicipal);
+ * - `deProvincia` / `paraProvincia` — **códigos** de província
+ *   (`cuanza-norte`, interprovincial);
  * - `provincia` — a província que restringe os municípios, no intermunicipal;
  * - `modo` — `interprovincial` ou `intermunicipal`.
  *
- * Um id de província nunca viaja em `de`: o `GET /api/rides` valida os filtros
- * de município como UUIDs de localidade existentes, e um id de província ali
- * seria aceite pela forma e errado no sentido.
+ * São códigos e não UUIDs porque a lista é local nos dois lados: a hero não
+ * pede nada à API para desenhar as províncias, e o `ExplorePage` também não.
+ * O código do município já traz a província, o que desambigua os três nomes
+ * repetidos do país.
+ *
+ * Um código de província nunca viaja em `de`: o `GET /api/rides` resolve cada
+ * vocabulário no seu espaço, mas trocá-los daria uma pesquisa sem resultados
+ * em vez de um erro — e o `modo` deixaria de bater certo com os campos.
  */
 export const ROUTE_INTENT_KEYS = [
 	'modo',

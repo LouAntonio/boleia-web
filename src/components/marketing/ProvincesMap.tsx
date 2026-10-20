@@ -1,4 +1,4 @@
-import { PROVINCES } from '../../lib/geo';
+import { PROVINCES } from '../../lib/locations';
 
 /**
  * As 21 províncias, na forma de uma constelação.

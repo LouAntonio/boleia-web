@@ -7,7 +7,12 @@ import { Select } from '../ui/Select';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { LocalityFilter } from '../rides/LocalityFilter';
 import { ProvinceFilter } from '../rides/ProvinceFilter';
-import { useProvinces } from '../../hooks/useLocalities';
+import { PROVINCES } from '../../lib/locations';
+
+const PROVINCE_OPTIONS = PROVINCES.map((province) => ({
+	value: province.code,
+	label: province.name,
+}));
 
 /**
  * O percurso de exemplo.
@@ -39,33 +44,22 @@ export function Hero() {
 	);
 	const [origin, setOrigin] = useState('');
 	const [destination, setDestination] = useState('');
-	const [provinceId, setProvinceId] = useState('');
+	const [province, setProvince] = useState('');
 	/**
 	 * As províncias de origem e de destino, em estado à parte dos municípios.
 	 *
-	 * Um id de província e um id de município vivem em espaços diferentes, e
+	 * Um código de província e um de município vivem em espaços diferentes, e
 	 * partilhar o campo obrigaria a lembrar a cada linha qual dos dois está lá.
 	 */
 	const [fromProvince, setFromProvince] = useState('');
 	const [toProvince, setToProvince] = useState('');
 
-	/*
-	 * As 21 províncias só se pedem no modo intermunicipal, onde há um selector
-	 * de província a mostrar. No interprovincial quem pede a lista é o
-	 * `ProvinceFilter`, e só quando alguém o abre.
-	 *
-	 * `useProvinces` aceita um `enabled`: fora desse modo o `Select` não está
-	 * no ecrã, e pedir a lista seria pagar 21 respostas para desenhar nada.
-	 */
 	const municipal = mode === 'intermunicipal';
-	const provinces = useProvinces(municipal);
 
 	/*
-	 * O `GET /api/rides` filtra por `ride_stop.localityId` e valida o valor
-	 * como UUID, por isso o que viaja no `?de=` é sempre um id. A versão
-	 * anterior da hero oferecia as 21 províncias e mandava o **nome** pelo
-	 * `?de=` — duas coisas erradas ao mesmo tempo: um nome não é um UUID, e uma
-	 * província não é uma localidade.
+	 * O que viaja no `?de=` é sempre o **código** do município, e `?provincia=`
+	 * o código da província. A lista é local: os dois vocabulários não pedem
+	 * nada à API, e o backend resolve o código para a localidade.
 	 *
 	 * **A pesquisa a sério é da app autenticada**: sem sessão, o backend recusa
 	 * `/api/rides`. Por isso o hero não mostra resultados — leva a pessoa a
@@ -79,7 +73,7 @@ export function Hero() {
 	 * ecrã à frente da pessoa.
 	 */
 	const ready = municipal
-		? Boolean(provinceId && origin && destination)
+		? Boolean(province && origin && destination)
 		: Boolean(fromProvince && toProvince);
 
 	/*
@@ -93,7 +87,7 @@ export function Hero() {
 	function changeMode(next: 'interprovincial' | 'intermunicipal') {
 		if (next === mode) return;
 		setMode(next);
-		setProvinceId('');
+		setProvince('');
 		setOrigin('');
 		setDestination('');
 		setFromProvince('');
@@ -101,7 +95,7 @@ export function Hero() {
 	}
 
 	function changeProvince(next: string) {
-		setProvinceId(next);
+		setProvince(next);
 		setOrigin('');
 		setDestination('');
 	}
@@ -156,7 +150,7 @@ export function Hero() {
 						const params = new URLSearchParams();
 						params.set('modo', mode);
 						if (municipal) {
-							if (provinceId) params.set('provincia', provinceId);
+							if (province) params.set('provincia', province);
 							if (origin) params.set('de', origin);
 							if (destination) params.set('para', destination);
 						} else {
@@ -188,12 +182,9 @@ export function Hero() {
 						<div className="mt-4">
 							<Select
 								label="Província"
-								value={provinceId}
+								value={province}
 								onChange={changeProvince}
-								options={(provinces.data ?? []).map((province) => ({
-									value: province.id,
-									label: province.name,
-								}))}
+								options={PROVINCE_OPTIONS}
 								placeholder="Escolhe a província"
 								hint="A origem e o destino têm de ser dentro desta província."
 							/>
@@ -224,8 +215,7 @@ export function Hero() {
 								onChange={setOrigin}
 								exclude={destination}
 								placeholder="Escolhe o ponto de partida"
-								restrictToProvinceId={provinceId || null}
-								lazy
+								restrictToProvince={province || null}
 							/>
 							<LocalityFilter
 								label="Para onde"
@@ -233,8 +223,7 @@ export function Hero() {
 								onChange={setDestination}
 								exclude={origin}
 								placeholder="Escolhe o destino"
-								restrictToProvinceId={provinceId || null}
-								lazy
+								restrictToProvince={province || null}
 							/>
 						</div>
 					) : (
@@ -274,7 +263,7 @@ export function Hero() {
 						{!ready ? (
 							<p className="text-small text-muted">
 								{municipal
-									? !provinceId
+									? !province
 										? 'Escolhe a província, a origem e o destino.'
 										: 'Escolhe a origem e o destino dentro da província.'
 									: 'Escolhe a província de partida e a de destino.'}

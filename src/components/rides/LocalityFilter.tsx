@@ -1,75 +1,87 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, Loader2, MapPin, Search } from 'lucide-react';
+import { ChevronDown, MapPin, Search } from 'lucide-react';
 import { Modal } from '../ui/Modal';
-import {
-	indexLocalities,
-	indexProvinces,
-	useAllLocalities,
-	useProvinces,
-} from '../../hooks/useLocalities';
+import { PROVINCES } from '../../lib/locations';
 import { toAscii } from '../../lib/format';
 
 interface LocalityFilterProps {
 	label: string;
-	/** Id da localidade escolhida, ou `''`. É o que o backend espera. */
+	/**
+	 * Código do município escolhido, ou `''`.
+	 *
+	 * É o código (`huambo.catabola`) que vai para `GET /api/rides` em
+	 * `origin`/`destination`. O UUID continua aceito pelo backend, mas os
+	 * clientes já não o conhecem.
+	 */
 	value: string;
-	onChange: (localityId: string) => void;
-	/** Localidade a esconder, para não permitir origem igual a destino. */
+	onChange: (municipalityCode: string) => void;
+	/** Município a esconder, para não permitir origem igual a destino. */
 	exclude?: string;
 	placeholder?: string;
 	/**
-	 * Só oferecer localidades desta província.
+	 * Só oferecer municípios desta província (código).
 	 *
 	 * É o que distingue uma pesquisa intermunicipal de uma interprovincial: as
-	 * duas continuam a filtrar por localidade, e o modo só restringe o universo
+	 * duas continuam a filtrar por município, e o modo só restringe o universo
 	 * de escolha. Sem isto, o rótulo "intermunicipal" seria uma promessa que a
 	 * pesquisa não cumpre — o filtro aceitaria uma origem em Benguela e outra
 	 * no Huambo e devolveria a viagem, como se fossem vizinhas.
 	 *
-	 * Espelha o `restrictToProvinceId` do `LocalityPicker` no telemóvel.
+	 * Espelha o `restrictToProvince` do `LocalityPicker` no telemóvel.
 	 *
 	 * Aplicado à lista **e** ao rótulo do valor já escolhido: se o que está
 	 * seleccionado cair fora da restrição, o filtro deixa de o oferecer mas o
 	 * gatilho continuava a mostrar o nome antigo, e a pessoa não sabia porque
 	 * é que a origem desapareceu do modal.
 	 */
-	restrictToProvinceId?: string | null;
-	/**
-	 * Não buscar as localidades até alguém abrir o picker.
-	 *
-	 * Cada uso desta lista dispara 22 pedidos — as 21 províncias e uma
-	 * localidade por província. Numa página pública isso é um burst de 21
-	 * respostas que a maioria das visitas nunca precisa, porque a maioria não
-	 * chega a tocar no filtro.
-	 *
-	 * O default é `false` de propósito. Quem tem um valor já escolhido precisa
-	 * da lista disponível para mostrar o rótulo: o `ExplorePage` hidrata a
-	 * origem e o destino a partir da query string, e com `lazy` o gatilho
-	 * mostraria "Todos" com um filtro aplicado. Aqui — a landing page — não há
-	 * valor herdado nenhum, e esperar pela primeira interacção é o
-	 * comportamento certo.
-	 */
-	lazy?: boolean;
+	restrictToProvince?: string | null;
+}
+
+type MunicipalityEntry = (typeof PROVINCES)[number]['municipalities'][number];
+type ProvinceEntry = (typeof PROVINCES)[number];
+
+/**
+ * O município escolhido e a província a que pertence, para o rótulo do gatilho.
+ *
+ * Vive fora do componente porque é uma procura pura sobre uma constante: o
+ * React Compiler não deixa preservar um `useMemo` cujo resultado pode não
+ * existir, e memoizar isto à mão não valia o atrito.
+ */
+function findSelected(
+	code: string,
+	restrictToProvince: string | null,
+): (MunicipalityEntry & { province: ProvinceEntry }) | undefined {
+	if (!code) return undefined;
+	for (const province of PROVINCES) {
+		const found = province.municipalities.find(
+			(municipality) => municipality.code === code,
+		);
+		if (!found) continue;
+		if (restrictToProvince && province.code !== restrictToProvince) {
+			return undefined;
+		}
+		return { ...found, province };
+	}
+	return undefined;
 }
 
 /**
  * Escolha de local de origem ou destino.
  *
- * O valor devolvido é sempre o **id da localidade**, e é isso que o backend
- * quer: `GET /api/rides` filtra por `ride_stop.localityId` e valida o valor
- * como UUID (`rides.service.ts`, `cleanId`).
+ * A lista é local (`lib/locations.ts`), gerada da seed do backend. Este filtro
+ * chegou a disparar 22 pedidos à API para montar as 306 localidades — as 21
+ * províncias e uma chamada por província. Nenhum desses dados muda, e nenhum
+ * deles precisa de servidor.
  *
- * Este filtro era um `<select>` com as 21 províncias e mandava o **nome** da
- * província. Duas coisas erradas ao mesmo tempo: o nome não é um UUID, e uma
- * província não é uma localidade — mesmo que o valor passasse, a comparação
- * não encontrava nada. Na prática, escolher uma origem ou destino devolvia
- * `400` e a página mostrava "o servidor não respondeu", que é a mensagem
- * errada para o que era um erro do cliente.
+ * O valor devolvido é o **código do município**, e não o nome: há três nomes
+ * repetidos entre províncias (Canacassala, Catabola e Quizenga), e o código
+ * leva a província à frente (`huambo.catabola`) precisamente para os
+ * distinguir.
  *
- * Porquê um modal com pesquisa e não dois `<select>` encadeados: Angola tem
- * 306 localidades na seed, e um `select` nativo com 306 linhas sem pesquisa é
- * pior do que o filtro que veio substituir. O gatilho continua a ter o
- * aspecto de um campo, por isso a grelha de filtros não muda.
+ * Porquê um modal com pesquisa e não dois `<select>` encadeados: são 306
+ * municípios, e um `select` nativo com 306 linhas sem pesquisa é pior do que
+ * o filtro que veio substituir. O gatilho continua a ter o aspecto de um
+ * campo, por isso a grelha de filtros não muda.
  *
  * Espelha o `LocalityPicker` do telemóvel.
  */
@@ -79,93 +91,63 @@ export function LocalityFilter({
 	onChange,
 	exclude,
 	placeholder = 'Todos',
-	lazy = false,
-	restrictToProvinceId = null,
+	restrictToProvince = null,
 }: LocalityFilterProps) {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState('');
 	/*
-	 * A província pode vir de fora (`restrictToProvinceId`, no modo
+	 * A província pode vir de fora (`restrictToProvince`, no modo
 	 * intermunicipal) ou ser escolhida aqui dentro do modal. Quando vem de fora
 	 * é a fonte de verdade: trocar de província lá fora tem de mandar o modal
 	 * atrás, senão a pessoa vê um modal cheio de municípios da província
 	 * anterior e escolhe um que já não serve.
 	 */
-	const [ownProvinceId, setOwnProvinceId] = useState('');
-	const provinceId = restrictToProvinceId ?? ownProvinceId;
-	// Sem `lazy`, `activated` é `true` desde o início e o gancho não muda
-	// nada. Com `lazy`, só o primeiro `show()` o vira — e nesse momento o
-	// modal abre já a mostrar o "A carregar localidades…" que está mais abaixo.
-	const [activated, setActivated] = useState(!lazy);
+	const [ownProvince, setOwnProvince] = useState('');
+	const province = restrictToProvince ?? ownProvince;
 
-	const provinces = useProvinces(activated);
-	const { localities, isLoading } = useAllLocalities(activated);
-
-	const byId = useMemo(() => indexLocalities(localities), [localities]);
-	const provinceName = useMemo(
-		() => indexProvinces(provinces.data ?? []),
-		[provinces.data],
-	);
-
-	const selected = useMemo(() => {
-		if (!value) return undefined;
-		const found = byId.get(value);
-		/*
-		 * Se a escolha actual cai fora da província restringida, não a
-		 * despensa. Mostrar o nome de uma origem que o modal já não oferece é
-		 * pior do que mostrar o placeholder: a pessoa lê "Luanda" no gatilho e
-		 * não percebe porque é que Luanda desapareceu da lista.
-		 */
-		if (
-			found &&
-			restrictToProvinceId &&
-			found.provinceId !== restrictToProvinceId
-		) {
-			return undefined;
-		}
-		return found;
-	}, [value, byId, restrictToProvinceId]);
+	/**
+	 * O município escolhido, com a província a que pertence.
+	 *
+	 * Se a escolha actual cai fora da província restringida, não a despensa.
+	 * Mostrar o nome de uma origem que o modal já não oferece é pior do que
+	 * mostrar o placeholder: a pessoa lê "Luanda" no gatilho e não percebe
+	 * porque é que Luanda desapareceu da lista.
+	 */
+	const selected = findSelected(value, restrictToProvince);
 	const selectedLabel = selected
-		? `${selected.municipality} · ${provinceName.get(selected.provinceId) ?? ''}`
+		? `${selected.name} · ${selected.province.name}`
 		: '';
-
-	// Só se oferecem províncias que tenham localidades: uma província vazia na
-	// lista é um beco sem saída.
-	const provincesWithLocalities = useMemo(() => {
-		const present = new Set(localities.map((item) => item.provinceId));
-		return (provinces.data ?? []).filter((province) =>
-			present.has(province.id),
-		);
-	}, [provinces.data, localities]);
 
 	const options = useMemo(() => {
 		const q = toAscii(query.trim());
-		return localities
-			.filter((item) => item.id !== exclude)
-			.filter((item) => !provinceId || item.provinceId === provinceId)
-			.filter((item) => {
+		return PROVINCES.filter(
+			(candidate) => !province || candidate.code === province,
+		)
+			.flatMap((candidate) =>
+				candidate.municipalities.map((municipality) => ({
+					...municipality,
+					province: candidate,
+				})),
+			)
+			.filter((municipality) => municipality.code !== exclude)
+			.filter((municipality) => {
 				if (!q) return true;
 				return (
-					toAscii(item.municipality).includes(q) ||
-					toAscii(item.name).includes(q) ||
-					toAscii(provinceName.get(item.provinceId) ?? '').includes(q)
+					toAscii(municipality.name).includes(q) ||
+					toAscii(municipality.province.name).includes(q)
 				);
 			})
 			.slice(0, 200);
-	}, [localities, exclude, provinceId, query, provinceName]);
+	}, [exclude, province, query]);
 
 	function show() {
 		setQuery('');
-		setOwnProvinceId('');
-		// Abrir é a interacção que justifica pagar as 21 peticiones. O modal
-		// mostra-se logo com o estado de carregamento que já existe; da segunda
-		// vez vem do cache.
-		setActivated(true);
+		setOwnProvince('');
 		setOpen(true);
 	}
 
-	function pick(localityId: string) {
-		onChange(localityId);
+	function pick(municipalityCode: string) {
+		onChange(municipalityCode);
 		setOpen(false);
 	}
 
@@ -199,7 +181,7 @@ export function LocalityFilter({
 			{open ? (
 				<Modal
 					title={label}
-					description="Procura pelo município, pelo nome da localidade ou pela província."
+					description="Procura pelo município ou pela província."
 					onClose={() => setOpen(false)}
 				>
 					<div className="flex flex-col gap-4">
@@ -226,30 +208,30 @@ export function LocalityFilter({
 						 * de cima já impõe, e ela não encontraria nada dentro
 						 * dessa escolha.
 						 */}
-						{!restrictToProvinceId ? (
+						{!restrictToProvince ? (
 							<div className="flex flex-wrap gap-2">
 								<button
 									type="button"
-									onClick={() => setOwnProvinceId('')}
-									aria-pressed={provinceId === ''}
+									onClick={() => setOwnProvince('')}
+									aria-pressed={province === ''}
 									className={[
 										'rounded-full border px-3 py-1.5 text-small transition-colors',
-										provinceId === ''
+										province === ''
 											? 'border-ink bg-ink text-surface'
 											: 'border-line text-muted hover:border-ink',
 									].join(' ')}
 								>
 									Todas
 								</button>
-								{provincesWithLocalities.map((province) => {
-									const active = provinceId === province.id;
+								{PROVINCES.map((candidate) => {
+									const active = province === candidate.code;
 									return (
 										<button
-											key={province.id}
+											key={candidate.code}
 											type="button"
 											onClick={() =>
-												setOwnProvinceId(
-													active ? '' : province.id,
+												setOwnProvince(
+													active ? '' : candidate.code,
 												)
 											}
 											aria-pressed={active}
@@ -260,35 +242,28 @@ export function LocalityFilter({
 													: 'border-line text-muted hover:border-ink',
 											].join(' ')}
 										>
-											{province.name}
+											{candidate.name}
 										</button>
 									);
 								})}
 							</div>
 						) : null}
 
-						{isLoading ? (
-							<p className="flex items-center justify-center gap-2 py-8 text-body text-muted">
-								<Loader2
-									size={16}
-									aria-hidden="true"
-									className="animate-spin"
-								/>
-								A carregar localidades…
-							</p>
-						) : options.length === 0 ? (
+						{options.length === 0 ? (
 							<p className="py-8 text-center text-body text-muted">
 								Nenhum município a bater certo.
 							</p>
 						) : (
 							<ul className="-mx-2 max-h-80 overflow-y-auto">
-								{options.map((item) => {
-									const active = value === item.id;
+								{options.map((municipality) => {
+									const active = value === municipality.code;
 									return (
-										<li key={item.id}>
+										<li key={municipality.code}>
 											<button
 												type="button"
-												onClick={() => pick(item.id)}
+												onClick={() =>
+													pick(municipality.code)
+												}
 												aria-current={
 													active ? 'true' : undefined
 												}
@@ -306,13 +281,10 @@ export function LocalityFilter({
 												/>
 												<span className="min-w-0 flex-1">
 													<span className="block truncate text-body text-ink">
-														{item.municipality}
+														{municipality.name}
 													</span>
 													<span className="block truncate text-small text-muted">
-														{item.name} ·{' '}
-														{provinceName.get(
-															item.provinceId,
-														) ?? ''}
+														{municipality.province.name}
 													</span>
 												</span>
 												{active ? (

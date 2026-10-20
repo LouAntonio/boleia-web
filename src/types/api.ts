@@ -34,22 +34,6 @@ export interface SessionUser {
  */
 export type AppRole = 'USER' | 'DRIVER' | 'MODERATOR' | 'SUPPORT' | 'ADMIN';
 
-/* ---------- Localidades ---------- */
-
-export interface Province {
-	id: string;
-	name: string;
-	latitude: number | null;
-	longitude: number | null;
-}
-
-export interface Locality {
-	id: string;
-	provinceId: string;
-	municipality: string;
-	name: string;
-}
-
 /* ---------- KYC ---------- */
 
 export type KycStatus = 'NOT_SUBMITTED' | 'PENDING' | 'VERIFIED' | 'REJECTED';

@@ -7,7 +7,7 @@ import * as api from '../../lib/api';
 import { qk } from '../../lib/queryClient';
 import { apiErrorMessage } from '../../lib/axios';
 import { usePageTitle } from '../../hooks/usePageMeta';
-import { useProvinces, useLocalityOptions } from '../../hooks/useLocalities';
+import { PROVINCES, municipalitiesOf } from '../../lib/locations';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { Field } from '../../components/ui/Field';
@@ -50,14 +50,21 @@ export function PublishRidePage() {
 	const [price, setPrice] = useState('');
 	const [vehicleId, setVehicleId] = useState('');
 
-	const { data: provinces = [] } = useProvinces();
-	const provinceOptions = provinces.map((province) => ({
-		value: province.id,
+	const provinceOptions = PROVINCES.map((province) => ({
+		value: province.code,
 		label: province.name,
 	}));
 
-	const origin = useLocalityOptions(originProvince || null);
-	const destination = useLocalityOptions(destProvince || null);
+	const originOptions = municipalitiesOf(originProvince).map((municipality) => ({
+		value: municipality.code,
+		label: municipality.name,
+	}));
+	const destinationOptions = municipalitiesOf(destProvince).map(
+		(municipality) => ({
+			value: municipality.code,
+			label: municipality.name,
+		}),
+	);
 
 	const { data: vehicles = [] } = useQuery({
 		queryKey: qk.vehicles,
@@ -67,9 +74,9 @@ export function PublishRidePage() {
 	const verifiedVehicles = vehicles.filter((v) => v.status === 'VERIFIED');
 
 	const originName =
-		origin.options.find((o) => o.value === originLocality)?.label ?? '';
+		originOptions.find((o) => o.value === originLocality)?.label ?? '';
 	const destName =
-		destination.options.find((o) => o.value === destLocality)?.label ?? '';
+		destinationOptions.find((o) => o.value === destLocality)?.label ?? '';
 	const vehicle = verifiedVehicles.find((v) => v.id === vehicleId);
 	const priceValue = parseKzInput(price);
 
@@ -209,10 +216,8 @@ export function PublishRidePage() {
 								label="Cidade"
 								value={originLocality}
 								onChange={setOriginLocality}
-								options={origin.options}
-								placeholder={
-									origin.isPending ? 'A carregar…' : 'Escolhe'
-								}
+								options={originOptions}
+								placeholder="Escolhe"
 								disabled={!originProvince}
 							/>
 						</div>
@@ -233,12 +238,8 @@ export function PublishRidePage() {
 								label="Cidade"
 								value={destLocality}
 								onChange={setDestLocality}
-								options={destination.options}
-								placeholder={
-									destination.isPending
-										? 'A carregar…'
-										: 'Escolhe'
-								}
+								options={destinationOptions}
+								placeholder="Escolhe"
 								disabled={!destProvince}
 							/>
 						</div>

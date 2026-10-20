@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Compass } from 'lucide-react';
+import { Compass, Search } from 'lucide-react';
 import { useRides, useMyBookings } from '../../hooks/useRides';
 import { Select } from '../../components/ui/Select';
 import { SegmentedControl } from '../../components/ui/SegmentedControl';
@@ -11,7 +11,7 @@ import { RideCard } from '../../components/rides/RideCard';
 import { LocalityFilter } from '../../components/rides/LocalityFilter';
 import { ProvinceFilter } from '../../components/rides/ProvinceFilter';
 import { usePageTitle } from '../../hooks/usePageMeta';
-import { useProvinces } from '../../hooks/useLocalities';
+import { PROVINCES } from '../../lib/locations';
 import { seatsLeft, toDateInput } from '../../lib/format';
 import type { ListRidesQuery } from '../../lib/api';
 
@@ -26,6 +26,66 @@ const SORTS = [
 	{ value: 'seats', label: 'Mais lugares' },
 ];
 
+const DATE_OPTIONS = [
+	{ value: '', label: 'Qualquer dia' },
+	{ value: '0', label: 'Hoje' },
+	{ value: '1', label: 'Amanhã' },
+	{ value: '7', label: 'Próximos 7 dias' },
+	{ value: '30', label: 'Próximos 30 dias' },
+];
+
+const PROVINCE_OPTIONS = PROVINCES.map((province) => ({
+	value: province.code,
+	label: province.name,
+}));
+
+/**
+ * Os campos que compõem uma pesquisa.
+ *
+ * Cada modo tem o seu vocabulário e só o seu vai para a API: município em
+ * `origin`/`destination`, província em `originProvinceId`/`destinationProvinceId`.
+ * O backend trata-os como predicados independentes sobre a mesma paragem, por
+ * isso mandar os dois pediria a intersecção — que não é o que nenhum dos modos
+ * quer dizer.
+ *
+ * **Os valores são códigos, não UUIDs.** A lista de províncias e municípios é
+ * local (`lib/locations.ts`) e não conhece ids. O código do município já traz a
+ * província (`huambo.catabola`), o que desambigua os três nomes repetidos.
+ */
+interface Filters {
+	mode: 'interprovincial' | 'intermunicipal';
+	origin: string;
+	destination: string;
+	/** Província que restringe os municípios, no modo intermunicipal. */
+	province: string;
+	/** Províncias de origem e destino, no modo interprovincial. */
+	fromProvince: string;
+	toProvince: string;
+	when: string;
+}
+
+const EMPTY_FILTERS: Filters = {
+	mode: 'interprovincial',
+	origin: '',
+	destination: '',
+	province: '',
+	fromProvince: '',
+	toProvince: '',
+	when: '',
+};
+
+function sameFilters(a: Filters, b: Filters): boolean {
+	return (
+		a.mode === b.mode &&
+		a.origin === b.origin &&
+		a.destination === b.destination &&
+		a.province === b.province &&
+		a.fromProvince === b.fromProvince &&
+		a.toProvince === b.toProvince &&
+		a.when === b.when
+	);
+}
+
 /**
  * Hidrata a pesquisa da landing a partir da query string, uma vez só.
  *
@@ -33,12 +93,6 @@ const SORTS = [
  * rota na primeira página, criava conta, confirmava por WhatsApp e aterrava em
  * `/app/explorar` **sem filtro nenhum**. O CTA principal da landing não levava
  * a lado nenhum.
- *
- * Os valores são ids, nunca nomes: o backend valida-os como UUID e filtra por
- * `ride_stop.localityId` (município) ou por `locality.provinceId` (província).
- * Os nomes vinham da seed com o defeito do CP437 ("Bié" chegava corrompido), o
- * que tornava qualquer correspondência por texto frágil exactamente nas
- * províncias com acentos.
  *
  * **O modo é inferido quando a URL não o diz.** Links anteriores à existência
  * de modos trazem `?de=&para=` — municípios — e um default cego para
@@ -48,7 +102,7 @@ const SORTS = [
  *
  * Só na montagem: se a pessoa mexer nos selectores depois, a URL já não manda.
  */
-function useSearchIntent(apply: (intent: SearchIntent) => void): void {
+function useSearchIntent(apply: (intent: Filters) => void): void {
 	const [searchParams] = useSearchParams();
 	const done = useRef(false);
 
@@ -80,74 +134,40 @@ function useSearchIntent(apply: (intent: SearchIntent) => void): void {
 							: 'intermunicipal',
 			origin,
 			destination,
-			provinceId: searchParams.get('provincia') ?? '',
+			province: searchParams.get('provincia') ?? '',
 			fromProvince,
 			toProvince,
+			when: '',
 		});
 	}, [searchParams, apply]);
 }
 
-interface SearchIntent {
-	mode: 'interprovincial' | 'intermunicipal';
-	origin: string;
-	destination: string;
-	provinceId: string;
-	fromProvince: string;
-	toProvince: string;
-}
-
-const DATE_OPTIONS = [
-	{ value: '', label: 'Qualquer dia' },
-	{ value: '0', label: 'Hoje' },
-	{ value: '1', label: 'Amanhã' },
-	{ value: '7', label: 'Próximos 7 dias' },
-	{ value: '30', label: 'Próximos 30 dias' },
-];
-
 export function ExplorePage() {
 	usePageTitle('Explorar');
 
-	const [mode, setMode] = useState<'interprovincial' | 'intermunicipal'>(
-		'interprovincial',
-	);
-	const [origin, setOrigin] = useState('');
-	const [destination, setDestination] = useState('');
-	/** Província que restringe os municípios, no modo intermunicipal. */
-	const [provinceId, setProvinceId] = useState('');
-	/** Províncias de origem e destino, no modo interprovincial. */
-	const [fromProvince, setFromProvince] = useState('');
-	const [toProvince, setToProvince] = useState('');
-	const [when, setWhen] = useState('');
+	/*
+	 * Dois estados, não um.
+	 *
+	 * `draft` é o que está nos campos; `applied` é o que foi pesquisado, e é
+	 * **só ele** que entra na chave do `useRides`. Antes, cada mudança de
+	 * filtro disparava logo um pedido: escolher "Luanda" e depois "Benguela"
+	 * fazia duas pesquisas, e a primeira nunca interessou a ninguém.
+	 *
+	 * A limpeza também passa por aqui: repõe os dois e faz um único pedido
+	 * sem filtros, em vez de um por cada campo limpo.
+	 */
+	const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
+	const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS);
 	const [sort, setSort] = useState('soon');
 
-	const municipal = mode === 'intermunicipal';
-	/*
-	 * Só se pedem as províncias no modo intermunicipal, onde há um `Select`
-	 * que as mostra. No interprovincial quem as pede é o `ProvinceFilter`,
-	 * quando alguém o abre.
-	 */
-	const provinces = useProvinces(municipal);
+	const municipal = draft.mode === 'intermunicipal';
+	const dirty = !sameFilters(draft, applied);
 
-	/*
-	 * A pesquisa da landing page chega aqui, e em dois vocabulários diferentes.
-	 *
-	 * - **Intermunicipal**: `?provincia=` (a província que restringe) e
-	 *   `?de=` / `?para=` (dois `localityId`).
-	 * - **Interprovincial**: `?deProvincia=` / `?paraProvincia=` (dois
-	 *   `provinceId`).
-	 *
-	 * Os nomes são distintos de propósito. Se os dois modos partilhassem
-	 * `de`/`para`, este ecrã teria de decidir pelo `modo` se o valor é um
-	 * município ou uma província — e essa decisão, feita num sítio e não em
-	 * todos, é como se mandam ids de província para um filtro de municípios.
-	 */
-	const applyIntent = useCallback((intent: SearchIntent) => {
-		setMode(intent.mode);
-		setOrigin(intent.origin);
-		setDestination(intent.destination);
-		setProvinceId(intent.provinceId);
-		setFromProvince(intent.fromProvince);
-		setToProvince(intent.toProvince);
+	const applyIntent = useCallback((intent: Filters) => {
+		setDraft(intent);
+		// Um link com filtros é uma pesquisa pedida: aplica-se logo, senão o
+		// CTA da landing voltava a chegar a uma lista sem filtro.
+		setApplied(intent);
 	}, []);
 
 	useSearchIntent(applyIntent);
@@ -157,34 +177,33 @@ export function ExplorePage() {
 	// seguir", e um `date` obriga a pensar em datas em vez de em dias.
 	const query = useMemo<ListRidesQuery>(() => {
 		const base: ListRidesQuery = { limit: 24 };
-		/*
-		 * Cada modo manda só o seu vocabulário. O backend trata município e
-		 * província como predicados independentes sobre a mesma paragem, por
-		 * isso mandar os dois pediria a intersecção — que não é o que nenhum
-		 * dos modos quer dizer.
-		 */
-		if (municipal) {
-			if (origin) base.origin = origin;
-			if (destination) base.destination = destination;
+		if (applied.mode === 'intermunicipal') {
+			if (applied.origin) base.origin = applied.origin;
+			if (applied.destination) base.destination = applied.destination;
 		} else {
-			if (fromProvince) base.originProvinceId = fromProvince;
-			if (toProvince) base.destinationProvinceId = toProvince;
+			if (applied.fromProvince) {
+				base.originProvinceId = applied.fromProvince;
+			}
+			if (applied.toProvince) {
+				base.destinationProvinceId = applied.toProvince;
+			}
 		}
 
-		if (when === '0') base.date = toDateInput(new Date().toISOString());
-		else if (when === '1') {
+		if (applied.when === '0') {
+			base.date = toDateInput(new Date().toISOString());
+		} else if (applied.when === '1') {
 			const tomorrow = new Date();
 			tomorrow.setDate(tomorrow.getDate() + 1);
 			base.date = toDateInput(tomorrow.toISOString());
-		} else if (when) {
+		} else if (applied.when) {
 			base.dateFrom = toDateInput(new Date().toISOString());
 			const limit = new Date();
-			limit.setDate(limit.getDate() + Number(when));
+			limit.setDate(limit.getDate() + Number(applied.when));
 			base.dateTo = toDateInput(limit.toISOString());
 		}
 
 		return base;
-	}, [municipal, origin, destination, fromProvince, toProvince, when]);
+	}, [applied]);
 
 	const { data, isPending, isError, refetch } = useRides(query);
 	const { data: myBookings = [] } = useMyBookings();
@@ -230,34 +249,48 @@ export function ExplorePage() {
 		return rows;
 	}, [data, sort]);
 
-	const filtered = municipal
-		? Boolean(origin || destination || when)
-		: Boolean(fromProvince || toProvince || when);
+	// O que está na lista é o que foi pesquisado, não o que está a ser
+	// preenchido: senão o cabeçalho contava resultados de filtros ainda por
+	// aplicar.
+	const filtered =
+		applied.mode === 'intermunicipal'
+			? Boolean(applied.origin || applied.destination || applied.when)
+			: Boolean(applied.fromProvince || applied.toProvince || applied.when);
+
+	function change<K extends keyof Filters>(key: K, value: Filters[K]) {
+		setDraft((current) => ({ ...current, [key]: value }));
+	}
 
 	/** Trocar de modo limpa as escolhas do modo anterior. */
 	function changeMode(next: 'interprovincial' | 'intermunicipal') {
-		if (next === mode) return;
-		setMode(next);
-		setOrigin('');
-		setDestination('');
-		setProvinceId('');
-		setFromProvince('');
-		setToProvince('');
+		if (next === draft.mode) return;
+		setDraft({
+			...draft,
+			mode: next,
+			origin: '',
+			destination: '',
+			province: '',
+			fromProvince: '',
+			toProvince: '',
+		});
 	}
 
 	function changeProvince(next: string) {
-		setProvinceId(next);
-		setOrigin('');
-		setDestination('');
+		setDraft((current) => ({
+			...current,
+			province: next,
+			origin: '',
+			destination: '',
+		}));
+	}
+
+	function search() {
+		setApplied(draft);
 	}
 
 	function clearFilters() {
-		setOrigin('');
-		setDestination('');
-		setProvinceId('');
-		setFromProvince('');
-		setToProvince('');
-		setWhen('');
+		setDraft(EMPTY_FILTERS);
+		setApplied(EMPTY_FILTERS);
 	}
 
 	return (
@@ -287,7 +320,7 @@ export function ExplorePage() {
 				<SegmentedControl
 					label="Tipo de viagem"
 					options={MODES}
-					value={mode}
+					value={draft.mode}
 					onChange={changeMode}
 					className="max-w-md"
 				/>
@@ -297,48 +330,43 @@ export function ExplorePage() {
 						<>
 							<Select
 								label="Província"
-								value={provinceId}
+								value={draft.province}
 								onChange={changeProvince}
-								options={(provinces.data ?? []).map((province) => ({
-									value: province.id,
-									label: province.name,
-								}))}
+								options={PROVINCE_OPTIONS}
 								placeholder="Todas"
 								hint="A origem e o destino ficam dentro desta província."
 							/>
 							<LocalityFilter
 								label="De onde"
-								value={origin}
-								onChange={setOrigin}
-								exclude={destination}
+								value={draft.origin}
+								onChange={(code) => change('origin', code)}
+								exclude={draft.destination}
 								placeholder="Todos"
-								restrictToProvinceId={provinceId || null}
-								lazy
+								restrictToProvince={draft.province || null}
 							/>
 							<LocalityFilter
 								label="Para onde"
-								value={destination}
-								onChange={setDestination}
-								exclude={origin}
+								value={draft.destination}
+								onChange={(code) => change('destination', code)}
+								exclude={draft.origin}
 								placeholder="Todos"
-								restrictToProvinceId={provinceId || null}
-								lazy
+								restrictToProvince={draft.province || null}
 							/>
 						</>
 					) : (
 						<>
 							<ProvinceFilter
 								label="De onde"
-								value={fromProvince}
-								onChange={setFromProvince}
-								exclude={toProvince}
+								value={draft.fromProvince}
+								onChange={(code) => change('fromProvince', code)}
+								exclude={draft.toProvince}
 								placeholder="Todas"
 							/>
 							<ProvinceFilter
 								label="Para onde"
-								value={toProvince}
-								onChange={setToProvince}
-								exclude={fromProvince}
+								value={draft.toProvince}
+								onChange={(code) => change('toProvince', code)}
+								exclude={draft.fromProvince}
 								placeholder="Todas"
 							/>
 						</>
@@ -346,8 +374,8 @@ export function ExplorePage() {
 
 					<Select
 						label="Quando"
-						value={when}
-						onChange={setWhen}
+						value={draft.when}
+						onChange={(value) => change('when', value)}
 						options={DATE_OPTIONS}
 					/>
 					<Select
@@ -356,6 +384,27 @@ export function ExplorePage() {
 						onChange={setSort}
 						options={SORTS}
 					/>
+				</div>
+
+				{/*
+				 * Pesquisar e limpar são actos explícitos. Os selectores só
+				 * mexem no rascunho; nenhum deles faz um pedido. `Limpar` repõe
+				 * os campos e aplica logo a pesquisa vazia, porque limpar é,
+				 * por si só, o pedido de "mostra-me tudo".
+				 */}
+				<div className="mt-4 flex flex-wrap items-center gap-3">
+					<Button onClick={search}>
+						<Search size={16} aria-hidden="true" />
+						Pesquisar
+					</Button>
+					<Button variant="secondary" onClick={clearFilters}>
+						Limpar filtros
+					</Button>
+					{dirty ? (
+						<p className="text-small text-muted">
+							Tens alterações por aplicar.
+						</p>
+					) : null}
 				</div>
 			</div>
 
@@ -386,7 +435,7 @@ export function ExplorePage() {
 					action={
 						filtered ? (
 							<Button variant="secondary" onClick={clearFilters}>
-								Tirar os filtros
+								Limpar filtros
 							</Button>
 						) : undefined
 					}

@@ -8,7 +8,6 @@ import { qk } from '../../lib/queryClient';
 import { apiErrorMessage } from '../../lib/axios';
 import { usePageTitle } from '../../hooks/usePageMeta';
 import { Button } from '../../components/ui/Button';
-import { Field } from '../../components/ui/Field';
 import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { StatusStamp } from '../../components/ui/StatusStamp';
@@ -83,11 +82,6 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 	const ownerType = isPassenger ? 'PASSENGER_KYC' : 'DRIVER_KYC';
 	const status = state?.status ?? 'NOT_SUBMITTED';
 
-	const [fullName, setFullName] = useState('');
-	const [biNumber, setBiNumber] = useState('');
-	const [licenseNumber, setLicenseNumber] = useState('');
-	const [licenseExpiry, setLicenseExpiry] = useState('');
-
 	const [biFront, setBiFront] = useState<string | null>(null);
 	const [biBack, setBiBack] = useState<string | null>(null);
 	const [selfies, setSelfies] = useState<string[]>([]);
@@ -98,6 +92,14 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 
 	const queryClient = useQueryClient();
 
+	/**
+	 * A submissão é **só** documentos.
+	 *
+	 * O nome, o número do BI e os dados da carta deixaram de ser pedidos como
+	 * texto. Nada os validava contra o documento, e o painel mostrava um número
+	 * que ninguém tinha conferido. O revisor vê as fotografias e o nome da
+	 * conta — que já existe e não precisa de ser reescrito.
+	 */
 	const submit = useMutation({
 		mutationFn: async () => {
 			const mediaIds = {
@@ -110,18 +112,8 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 			};
 
 			return isPassenger
-				? api.submitPassengerKyc({
-						fullName: fullName.trim(),
-						biNumber: biNumber.trim(),
-						mediaIds,
-					})
-				: api.submitDriverKyc({
-						fullName: fullName.trim(),
-						biNumber: biNumber.trim(),
-						licenseNumber: licenseNumber.trim() || undefined,
-						licenseExpiry: licenseExpiry || undefined,
-						mediaIds,
-					});
+				? api.submitPassengerKyc({ mediaIds })
+				: api.submitDriverKyc({ mediaIds });
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: qk.kyc });
@@ -141,8 +133,6 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 		event.preventDefault();
 
 		const problems: Record<string, string | null> = {
-			fullName: fullName.trim() ? null : 'Escreve o nome como está no BI.',
-			biNumber: biNumber.trim() ? null : 'Escreve o número do BI.',
 			biFront: biFront ? null : 'Carrega a frente do BI.',
 			biBack: biBack ? null : 'Carrega o verso do BI.',
 			selfies:
@@ -212,26 +202,6 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 					noValidate
 					className="mt-6 flex flex-col gap-5"
 				>
-					<Field
-						label="Nome completo"
-						value={fullName}
-						onChange={(event) => setFullName(event.target.value)}
-						autoComplete="name"
-						hint="Tal como está no teu BI."
-						error={errors.fullName}
-					/>
-
-					<Field
-						label="Número do BI"
-						value={biNumber}
-						onChange={(event) =>
-							setBiNumber(event.target.value.toUpperCase())
-						}
-						placeholder="000000000L041"
-						className="font-mono"
-						error={errors.biNumber}
-					/>
-
 					<UploadRow
 						label="BI — frente"
 						fileId={biFront}
@@ -302,34 +272,13 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 					) : null}
 
 					{!isPassenger ? (
-						<>
-							<Field
-								label="Número da carta"
-								value={licenseNumber}
-								onChange={(event) =>
-									setLicenseNumber(event.target.value)
-								}
-								placeholder="Opcional"
-								className="font-mono"
-							/>
-
-							<Field
-								label="Validade da carta"
-								type="date"
-								value={licenseExpiry}
-								onChange={(event) =>
-									setLicenseExpiry(event.target.value)
-								}
-							/>
-
-							<UploadRow
-								label="Carta de condução"
-								fileId={license}
-								onUploaded={setLicense}
-								error={errors.license}
-								ownerType="DRIVER_KYC"
-							/>
-						</>
+						<UploadRow
+							label="Carta de condução"
+							fileId={license}
+							onUploaded={setLicense}
+							error={errors.license}
+							ownerType="DRIVER_KYC"
+						/>
 					) : null}
 
 					<Button type="submit" full disabled={submit.isPending}>

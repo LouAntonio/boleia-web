@@ -18,11 +18,9 @@ import type {
 	EmergencyContact,
 	KycMe,
 	KycStatus,
-	Locality,
 	NotificationPage,
 	Paged,
 	PaymentMethod,
-	Province,
 	PublicRide,
 	Ride,
 	RideStatus,
@@ -143,41 +141,28 @@ export async function saveEmergencyContact(
 
 /* ---------- Localidades ---------- */
 
-/**
- * As 21 províncias.
- *
- * Routeiro público no backend: não tem dados pessoais e é a única coisa de que a
- * landing page precisa do lado geográfico. Convém para a sério — a seed do
- * backend é executada uma vez e estas 306 localidades não mudam.
- */
-export async function listProvinces(): Promise<Province[]> {
-	const { data } = await apiClient.get<Province[]>('/api/locality/provinces');
-	return data;
-}
-
-export async function listLocalities(provinceId: string): Promise<Locality[]> {
-	const { data } = await apiClient.get<Locality[]>(
-		`/api/locality/provinces/${provinceId}/localities`,
-	);
-	return data;
-}
-
 /* ---------- Corridas ---------- */
 
+/*
+ * Os filtros de lugar aceitam o **código** da província ou do município
+ * (`huambo.catabola`), e não o UUID. A lista é local (`lib/locations.ts`): os
+ * clientes deixaram de pedir `/api/locality/*`. O backend ainda aceita o UUID,
+ * para não partir links antigos.
+ */
 export interface ListRidesQuery {
-	/** Id da localidade de origem. Modo "intermunicipal". */
+	/** Código do município de origem. Modo "intermunicipal". */
 	origin?: string;
-	/** Id da localidade de destino. Modo "intermunicipal". */
+	/** Código do município de destino. Modo "intermunicipal". */
 	destination?: string;
 	/**
-	 * Id da província de origem. Modo "interprovincial".
+	 * Código da província de origem. Modo "interprovincial".
 	 *
 	 * O backend trata município e província como predicados **independentes**:
 	 * mandar os dois obriga a que a paragem esteja naquela província **e** seja
 	 * aquele município. Cada modo manda só o seu.
 	 */
 	originProvinceId?: string;
-	/** Id da província de destino. Modo "interprovincial". */
+	/** Código da província de destino. Modo "interprovincial". */
 	destinationProvinceId?: string;
 	/** Dia inteiro, em `AAAA-MM-DD`. */
 	date?: string;
@@ -237,7 +222,9 @@ export async function fetchMyRides(
 
 export interface CreateRideInput {
 	vehicleId: string;
+	/** Código do município de origem (`luanda.talatona`). */
 	originLocalityId: string;
+	/** Código do município de destino (`luanda.viana`). */
 	destinationLocalityId: string;
 	departureAt: string;
 	arrivalAt: string;
@@ -396,16 +383,10 @@ interface KycMediaIdsInput {
 }
 
 export interface SubmitDriverKycInput {
-	fullName: string;
-	biNumber: string;
-	licenseNumber?: string;
-	licenseExpiry?: string;
 	mediaIds: KycMediaIdsInput;
 }
 
 export interface SubmitPassengerKycInput {
-	fullName: string;
-	biNumber: string;
 	/** `bodyPhoto` é obrigatório no servidor, como no telemóvel. */
 	mediaIds: KycMediaIdsInput;
 }

@@ -168,17 +168,31 @@ Por decisão, e não por falta de tempo:
 O percurso da hero é o único número ilustrativo, e está rotulado como exemplo
 logo abaixo.
 
-## O `RoadTrack` e a lista de províncias
+## As províncias e os municípios são locais
 
-`src/lib/geo.ts` vem da seed do backend (`back/prisma/seed/angola-localities.json`),
-**com os nomes corrigidos**. Essa seed tinha passado pelo CP850, a codepage da
-consola do Windows em português: um nome com acentos foi escrito em UTF-8 e lido
-como se fossem bytes de uma tabela de desenho de caixas — `Bié` chegou a `Bi├®`.
+`src/lib/locations.ts` é **gerado**, não escrito à mão: `back/scripts/generate-locations.ts`
+lê a seed do backend (`back/prisma/seed/angola-localities.json`) e escreve o mesmo
+ficheiro aqui e no telemóvel. As 21 províncias e os 306 municípios são constantes
+do bloco inicial; não há um pedido para preencher um filtro.
 
-A seed e a base de dados já foram corrigidas (o JSON está em UTF-8 e há um script
-de reparação em `back/scripts/repair-locality-encoding.ts`), por isso
-`/api/locality/provinces` devolve hoje os mesmos nomes que este ficheiro. O `name`
-das províncias e das localidades está certo dos dois lados.
+Cada província e cada município tem um **código estável**, e é esse o
+identificador que a interface usa:
+
+- província → slug do nome (`luanda`, `cuanza-norte`, `moxico-oriental`);
+- município → `provincia.municipio` (`bie.catabola`, `huambo.catabola`).
+
+O prefixo do município não é decoração. Há três nomes repetidos no país —
+`Catabola` no Bié e no Huambo, `Canacassala` no Bengo e no Uíge, `Quizenga` no
+Cuanza Norte e em Malanje — e um código só com o nome colidiria. A API aceita o
+código em todos os parâmetros de localidade (`origin`, `destination`,
+`originProvinceId`, `destinationProvinceId`, `stops[].localityId`) e continua a
+aceitar o UUID antigo, por isso os links já partilhados não morrem.
+
+A seed tinha passado pelo CP850, a codepage da consola do Windows em português:
+um nome com acentos foi escrito em UTF-8 e lido como se fossem bytes de uma
+tabela de desenho de caixas — `Bié` chegou a `Bi├®`. Já foi corrigida (o JSON está
+em UTF-8 e há um script de reparação em `back/scripts/repair-locality-encoding.ts`),
+e o `seed.ts` aborta se voltar a encontrar mojibake.
 
 ## Google
 
@@ -210,8 +224,8 @@ src/
       legal/     PageHeader, Prose, LegalDoc (Todo, DocIndex, DraftNotice), FaqList
       AppShell, AuthShell, MarketingHeader/Footer, guards, Lazy, lazyPage
     auth/        GoogleButton, GoogleIcon, ConsentRow, Divider
-  hooks/         useAuth, useRides, useKyc, useLocalities, usePageMeta
-  lib/           api, axios, auth, format, phone, geo, status, queryClient
+  hooks/         useAuth, useRides, useKyc, usePageMeta
+  lib/           api, axios, auth, format, locations, phone, status, queryClient
   pages/
     institutional/ About, Driver, Security, Faq, Contact, Privacy, Terms
     auth/        SignIn, SignUp, Verify, ForgotPassword, ResetPassword
