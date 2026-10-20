@@ -448,8 +448,10 @@ export async function markAllNotificationsRead(): Promise<void> {
  * Cloudinary e não passa pelo backend — por isso não é `apiClient` — para não
  * ocupar a API com bytes de imagem.
  */
+export type UploadOwnerType = 'USER' | 'VEHICLE' | 'DRIVER_KYC' | 'PASSENGER_KYC';
+
 export async function requestUploadSignature(input: {
-	ownerType: 'USER' | 'VEHICLE' | 'DRIVER_KYC' | 'PASSENGER_KYC';
+	ownerType: UploadOwnerType;
 }): Promise<UploadSignature> {
 	const { data } = await apiClient.post<UploadSignature>(
 		'/api/cloudinary/signature',
@@ -465,11 +467,12 @@ export async function confirmUpload(publicId: string): Promise<void> {
 /**
  * Os campos que o Cloudinary assina, e que têm de viajar no pedido.
  *
- * O backend assina cinco parâmetros (`cloudinary.service.ts`, `toSign`):
- * `timestamp`, `public_id`, `transformation`, `eager` e `allowed_formats`. O
- * Cloudinary recalcula a assinatura **sobre o que recebe**; um parâmetro
- * assinado que não vai no pedido faz a assinatura não bater e o upload ser
- * recusado com um 400 sem explicação.
+ * O backend assina seis parâmetros (`cloudinary.service.ts`, `toSign`):
+ * `timestamp`, `public_id`, `transformation`, `eager`, `allowed_formats` e,
+ * nos documentos de KYC, `type` (`private`). O Cloudinary recalcula a
+ * assinatura **sobre o que recebe**; um parâmetro assinado que não vai no
+ * pedido faz a assinatura não bater e o upload ser recusado com um 400 sem
+ * explicação.
  *
  * O `allowed_formats` faltava aqui e o `eager` faltava na app móvel — em
  * conjunto, KYC e registo de viaturas não funcionavam em lado nenhum.
@@ -480,7 +483,81 @@ const SIGNED_UPLOAD_FIELDS = [
 	'transformation',
 	'eager',
 	'allowed_formats',
+	'type',
 ] as const;
+
+function formatMegabytes(bytes: number): string {
+	return (bytes / (1024 * 1024)).toFixed(1).replace('.', ',');
+}
+
+/**
+ * Extensões que o Cloudinary aceita por tipo MIME.
+ *
+ * O `CLOUDINARY_ALLOWED_FORMATS` é configurável, por isso a comparação é em
+ * extensões (o que o Cloudinary valida), não em MIME. O `image/jpeg` cobre
+ * `jpg` e `jpeg`, que são o mesmo formato escrito de duas maneiras.
+ */
+const FORMATS_BY_MIME: Record<string, string[]> = {
+	'image/jpeg': ['jpg', 'jpeg'],
+	'image/png': ['png'],
+	'image/webp': ['webp'],
+	'image/avif': ['avif'],
+	'image/heic': ['heic', 'heif'],
+};
+
+/**
+ * Recusa localmente o que o Cloudinary recusaria — com uma frase útil.
+ *
+ * A assinatura já traz `maxBytes` e `allowedFormats`, e nada os lia: um ficheiro
+ * de 30 MB ou um HEIC de iPhone só descobria o problema depois de subir. Aqui a
+ * pessoa sabe logo o que se passa e não gasta dados.
+ */
+function assertUploadable(file: File, signature: UploadSignature): void {
+	if (file.size > signature.maxBytes) {
+		throw new Error(
+			`A imagem tem ${formatMegabytes(file.size)} MB e o máximo é ` +
+				`${formatMegabytes(signature.maxBytes)} MB.`,
+		);
+	}
+
+	const allowed = signature.allowedFormats
+		.split(',')
+		.map((format) => format.trim().toLowerCase())
+		.filter(Boolean);
+	if (allowed.length === 0) return;
+
+	const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+	const candidates = FORMATS_BY_MIME[file.type] ?? (extension ? [extension] : []);
+	if (!candidates.some((format) => allowed.includes(format))) {
+		throw new Error(
+			`Formato não aceite${extension ? ` (${extension})` : ''}. ` +
+				`Usa ${allowed.join(', ')}.`,
+		);
+	}
+}
+
+/**
+ * A mensagem do Cloudinary, quando o upload é recusado.
+ *
+ * Um 401 por credenciais erradas chegava ao ecrã como "Não foi possível
+ * carregar a imagem." — verdadeiro, mas inútil: a causa ("Unknown API key")
+ * estava no corpo da resposta e era deitada fora.
+ */
+async function uploadErrorMessage(response: Response): Promise<string> {
+	const fallback = 'Não foi possível carregar a imagem. Tenta de novo.';
+	try {
+		const body = (await response.json()) as {
+			error?: { message?: string };
+		};
+		const detail = body.error?.message?.trim();
+		if (detail) {
+			return `A imagem não foi aceite: ${detail}.`;
+		}
+	} catch {
+		// Corpo não-JSON (proxy, página de erro): fica a mensagem genérica.
+	}
+	return fallback;
+}
 
 function appendSignedParams(form: FormData, signature: UploadSignature): void {
 	// `public_id` e `allowed_formats` têm sublinhado no protocolo do Cloudinary;
@@ -516,9 +593,10 @@ export interface UploadedAsset {
  */
 export async function uploadImage(
 	file: File,
-	ownerType: 'USER' | 'VEHICLE' | 'DRIVER_KYC' | 'PASSENGER_KYC',
+	ownerType: UploadOwnerType,
 ): Promise<UploadedAsset> {
 	const signature = await requestUploadSignature({ ownerType });
+	assertUploadable(file, signature);
 
 	const form = new FormData();
 	form.append('file', file);
@@ -531,11 +609,32 @@ export async function uploadImage(
 		body: form,
 	});
 	if (!response.ok) {
-		throw new Error('Não foi possível carregar a imagem. Tenta de novo.');
+		throw new Error(await uploadErrorMessage(response));
 	}
 
 	await confirmUpload(signature.publicId);
 	return { mediaId: signature.mediaId, publicId: signature.publicId };
+}
+
+/**
+ * Envia uma lista de ficheiros **pela ordem dada**, um de cada vez.
+ *
+ * É o que os formulários usam no submit: o KYC e a viatura remontam os ids por
+ * posição, por isso a ordem não pode depender de `Promise.all`. O callback de
+ * progresso permite dizer "A enviar 2/5…" em vez de um botão parado.
+ */
+export async function uploadImages(
+	files: File[],
+	ownerType: UploadOwnerType,
+	onProgress?: (done: number, total: number) => void,
+): Promise<string[]> {
+	const mediaIds: string[] = [];
+	for (const file of files) {
+		onProgress?.(mediaIds.length + 1, files.length);
+		const asset = await uploadImage(file, ownerType);
+		mediaIds.push(asset.mediaId);
+	}
+	return mediaIds;
 }
 
 /**

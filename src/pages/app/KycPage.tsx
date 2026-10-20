@@ -7,6 +7,7 @@ import * as api from '../../lib/api';
 import { qk } from '../../lib/queryClient';
 import { apiErrorMessage } from '../../lib/axios';
 import { usePageTitle } from '../../hooks/usePageMeta';
+import { useObjectUrl } from '../../hooks/useObjectUrl';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -14,6 +15,11 @@ import { StatusStamp } from '../../components/ui/StatusStamp';
 import type { KycState } from '../../types/api';
 
 type Side = 'passenger' | 'driver';
+
+type SingleField = 'biFront' | 'biBack' | 'bodyPhoto' | 'license';
+
+type UploadItem =
+	{ field: SingleField; file: File } | { field: 'selfie'; file: File };
 
 export function KycPage() {
 	usePageTitle('Verificação de identidade');
@@ -82,11 +88,12 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 	const ownerType = isPassenger ? 'PASSENGER_KYC' : 'DRIVER_KYC';
 	const status = state?.status ?? 'NOT_SUBMITTED';
 
-	const [biFront, setBiFront] = useState<string | null>(null);
-	const [biBack, setBiBack] = useState<string | null>(null);
-	const [selfies, setSelfies] = useState<string[]>([]);
-	const [bodyPhoto, setBodyPhoto] = useState<string | null>(null);
-	const [license, setLicense] = useState<string | null>(null);
+	const [biFront, setBiFront] = useState<File | null>(null);
+	const [biBack, setBiBack] = useState<File | null>(null);
+	const [selfies, setSelfies] = useState<File[]>([]);
+	const [bodyPhoto, setBodyPhoto] = useState<File | null>(null);
+	const [license, setLicense] = useState<File | null>(null);
+	const [progress, setProgress] = useState<string | null>(null);
 
 	const [errors, setErrors] = useState<Record<string, string | null>>({});
 
@@ -99,16 +106,55 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 	 * texto. Nada os validava contra o documento, e o painel mostrava um número
 	 * que ninguém tinha conferido. O revisor vê as fotografias e o nome da
 	 * conta — que já existe e não precisa de ser reescrito.
+	 *
+	 * Os ficheiros ficam no browser até este momento. Carregar no instante em
+	 * que são escolhidos deixava documentos no Cloudinary de formulários que
+	 * nunca chegaram a ser enviados, e dava ao botão "Escolher imagem" a
+	 * responsabilidade de uma operação de rede que pode falhar.
 	 */
 	const submit = useMutation({
 		mutationFn: async () => {
+			if (!biFront || !biBack) {
+				throw new Error('Carrega a frente e o verso do BI.');
+			}
+
+			const queue: UploadItem[] = [
+				{ field: 'biFront', file: biFront },
+				{ field: 'biBack', file: biBack },
+				...selfies.map((file): UploadItem => ({ field: 'selfie', file })),
+			];
+
+			if (isPassenger) {
+				if (!bodyPhoto) {
+					throw new Error('Carrega a foto de corpo inteiro.');
+				}
+				queue.push({ field: 'bodyPhoto', file: bodyPhoto });
+			} else {
+				if (!license) {
+					throw new Error('Carrega a carta de condução.');
+				}
+				queue.push({ field: 'license', file: license });
+			}
+
+			const single: Partial<Record<SingleField, string>> = {};
+			const selfieIds: string[] = [];
+			let sent = 0;
+
+			for (const item of queue) {
+				setProgress(`A enviar ${sent + 1}/${queue.length}…`);
+				const { mediaId } = await api.uploadImage(item.file, ownerType);
+				sent += 1;
+				if (item.field === 'selfie') selfieIds.push(mediaId);
+				else single[item.field] = mediaId;
+			}
+
 			const mediaIds = {
-				biFront: biFront as string,
-				biBack: biBack as string,
-				selfies,
+				biFront: single.biFront as string,
+				biBack: single.biBack as string,
+				selfies: selfieIds,
 				...(isPassenger
-					? { bodyPhoto: bodyPhoto as string }
-					: { license: license ?? undefined }),
+					? { bodyPhoto: single.bodyPhoto as string }
+					: { license: single.license }),
 			};
 
 			return isPassenger
@@ -122,6 +168,7 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 		onError: (error: unknown) => {
 			toast.error(apiErrorMessage(error, 'Não foi possível enviar.'));
 		},
+		onSettled: () => setProgress(null),
 	});
 
 	// Verificado ou pendente: o formulário sai da frente e mostra o estado.
@@ -204,18 +251,16 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 				>
 					<UploadRow
 						label="BI — frente"
-						fileId={biFront}
-						onUploaded={setBiFront}
+						file={biFront}
+						onChange={setBiFront}
 						error={errors.biFront}
-						ownerType={ownerType}
 					/>
 
 					<UploadRow
 						label="BI — verso"
-						fileId={biBack}
-						onUploaded={setBiBack}
+						file={biBack}
+						onChange={setBiBack}
 						error={errors.biBack}
-						ownerType={ownerType}
 					/>
 
 					<div>
@@ -227,9 +272,10 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 							rosto descoberto.
 						</p>
 						<div className="mt-2 flex flex-wrap gap-3">
-							{selfies.map((id, index) => (
-								<UploadedFile
-									key={id}
+							{selfies.map((file, index) => (
+								<SelectedFile
+									key={`${file.name}-${file.lastModified}-${index}`}
+									file={file}
 									onRemove={() =>
 										setSelfies((current) =>
 											current.filter(
@@ -242,11 +288,10 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 
 							{selfies.length < 3 ? (
 								<UploadButton
-									onUploaded={(id) =>
-										setSelfies((current) => [...current, id])
+									onSelect={(file) =>
+										setSelfies((current) => [...current, file])
 									}
 									label={`Fotografia ${selfies.length + 1}`}
-									ownerType={ownerType}
 								/>
 							) : null}
 						</div>
@@ -263,10 +308,9 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 					{isPassenger ? (
 						<UploadRow
 							label="Foto de corpo inteiro"
-							fileId={bodyPhoto}
-							onUploaded={setBodyPhoto}
+							file={bodyPhoto}
+							onChange={setBodyPhoto}
 							error={errors.bodyPhoto}
-							ownerType="PASSENGER_KYC"
 							hint="De corpo inteiro, da cabeça aos pés, para se ver que és tu."
 						/>
 					) : null}
@@ -274,16 +318,15 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
 					{!isPassenger ? (
 						<UploadRow
 							label="Carta de condução"
-							fileId={license}
-							onUploaded={setLicense}
+							file={license}
+							onChange={setLicense}
 							error={errors.license}
-							ownerType="DRIVER_KYC"
 						/>
 					) : null}
 
 					<Button type="submit" full disabled={submit.isPending}>
 						{submit.isPending
-							? 'A enviar…'
+							? (progress ?? 'A enviar…')
 							: status === 'REJECTED'
 								? 'Reenviar'
 								: 'Enviar para revisão'}
@@ -304,17 +347,15 @@ function KycForm({ side, state }: { side: Side; state: KycState | null }) {
  */
 function UploadRow({
 	label,
-	fileId,
-	onUploaded,
+	file,
+	onChange,
 	error,
-	ownerType,
 	hint,
 }: {
 	label: string;
-	fileId: string | null;
-	onUploaded: (id: string) => void;
+	file: File | null;
+	onChange: (file: File | null) => void;
 	error?: string | null;
-	ownerType: 'DRIVER_KYC' | 'PASSENGER_KYC';
 	hint?: string;
 }) {
 	return (
@@ -324,14 +365,10 @@ function UploadRow({
 			{hint ? <p className="mt-1 text-small text-muted">{hint}</p> : null}
 
 			<div className="mt-2">
-				{fileId ? (
-					<UploadedFile onRemove={() => onUploaded('')} />
+				{file ? (
+					<SelectedFile file={file} onRemove={() => onChange(null)} />
 				) : (
-					<UploadButton
-						onUploaded={onUploaded}
-						label={label}
-						ownerType={ownerType}
-					/>
+					<UploadButton onSelect={onChange} label={label} />
 				)}
 			</div>
 
@@ -344,31 +381,21 @@ function UploadRow({
 	);
 }
 
+/**
+ * Escolhe um ficheiro do disco — e **só isso**.
+ *
+ * Não faz rede: o upload acontece no submit do formulário, com todos os
+ * documentos de uma vez. Antes disto, escolher a frente do BI já a mandava para
+ * o Cloudinary, e quem desistisse a meio deixava ficheiros pendurados.
+ */
 function UploadButton({
-	onUploaded,
+	onSelect,
 	label,
-	ownerType,
 }: {
-	onUploaded: (id: string) => void;
+	onSelect: (file: File) => void;
 	label: string;
-	ownerType: 'DRIVER_KYC' | 'PASSENGER_KYC';
 }) {
 	const inputRef = useRef<HTMLInputElement>(null);
-	const [busy, setBusy] = useState(false);
-
-	async function handleFile(file: File) {
-		setBusy(true);
-		try {
-			const { mediaId } = await api.uploadImage(file, ownerType);
-			onUploaded(mediaId);
-		} catch (error) {
-			toast.error(
-				apiErrorMessage(error, 'Não foi possível carregar a imagem.'),
-			);
-		} finally {
-			setBusy(false);
-		}
-	}
 
 	return (
 		<>
@@ -383,42 +410,53 @@ function UploadButton({
 				type="file"
 				accept="image/jpeg,image/png,image/webp"
 				className="sr-only"
-				disabled={busy}
 				onChange={(event) => {
 					const file = event.target.files?.[0];
-					if (file) void handleFile(file);
 					// Limpar o valor permite escolher o mesmo ficheiro outra vez
 					// depois de o trocar — sem isto, o `change` não dispara.
 					event.target.value = '';
+					if (file) onSelect(file);
 				}}
 			/>
 
 			<button
 				type="button"
 				onClick={() => inputRef.current?.click()}
-				disabled={busy}
 				// O `label` entra aqui como nome acessível. O texto do botão é
 				// "Escolher imagem", que por si só não diz *que* imagem.
 				aria-label={`Escolher imagem: ${label}`}
-				className="inline-flex h-11 items-center gap-2 rounded-md border border-dashed border-line px-4 text-body text-muted transition-colors hover:border-brand hover:text-brand-text disabled:opacity-50"
+				className="inline-flex h-11 items-center gap-2 rounded-md border border-dashed border-line px-4 text-body text-muted transition-colors hover:border-brand hover:text-brand-text"
 			>
 				<Upload size={16} aria-hidden="true" />
-				{busy ? 'A carregar…' : 'Escolher imagem'}
+				Escolher imagem
 			</button>
 		</>
 	);
 }
 
-function UploadedFile({ onRemove }: { onRemove: () => void }) {
+/** Ficheiro escolhido mas **ainda não enviado**, com miniatura local. */
+function SelectedFile({ file, onRemove }: { file: File; onRemove: () => void }) {
+	const preview = useObjectUrl(file);
+
 	return (
-		<span className="inline-flex h-11 items-center gap-2 rounded-md bg-ok-soft px-4 text-small text-ok">
-			<IdCard size={16} aria-hidden="true" />
-			Carregada
+		<span className="inline-flex h-11 max-w-full items-center gap-2 rounded-md border border-line bg-canvas px-3 text-small text-ink">
+			{preview ? (
+				<img
+					src={preview}
+					alt=""
+					className="h-7 w-7 shrink-0 rounded object-cover"
+				/>
+			) : (
+				<IdCard size={16} aria-hidden="true" className="shrink-0" />
+			)}
+			<span className="max-w-40 truncate" title={file.name}>
+				{file.name}
+			</span>
 			<button
 				type="button"
 				onClick={onRemove}
-				aria-label="Trocar imagem"
-				className="rounded-sm p-0.5 transition-colors hover:text-alert"
+				aria-label={`Remover ${file.name}`}
+				className="shrink-0 rounded-sm p-0.5 text-muted transition-colors hover:text-alert"
 			>
 				<X size={14} aria-hidden="true" />
 			</button>

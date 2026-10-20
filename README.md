@@ -208,7 +208,7 @@ localmente, no Google Cloud Console:
 
 `.github/workflows/ci.yml`: `npm ci` → `lint:check` → `format:check` →
 `typecheck` → `build`, em Node 22, em cada `push` e `pull_request` para a `main`.
-Sem testes — como o painel `adm`. O backend tem 302.
+Sem testes — como o painel `adm`. O backend tem 390.
 
 `npm run cipipe` é a mesma cadeia, localmente.
 
@@ -241,6 +241,11 @@ Cada uma é um `lazy` por rota (`components/layout/lazyPage.ts`). Sem isso, as
 sete no mesmo ficheiro levavam o bloco inicial a 552 KB e o Vite a avisar que
 passava dos 500 KB. Com, o bloco inicial desce para 441 KB e cada página
 institucional pesa entre 2 e 5 KB gzip.
+
+A lista local de províncias e municípios voltou a pôr o bloco inicial acima dos
+500 KB (≈510 KB, com os 306 municípios dentro). O aviso do Vite não é um erro e
+é o preço de não haver 22 pedidos só para encher um filtro; se voltar a importar,
+o corte é cortar o `locations.ts` por província, não voltar a pedi-lo à API.
 
 O `Suspense` está **acima** do `<Routes>`, e não dentro de cada rota: com ele
 dentro, cada navegação apareceria e desapareceria.

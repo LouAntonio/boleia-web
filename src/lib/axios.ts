@@ -117,5 +117,21 @@ export function apiErrorMessage(
 			return 'Sem ligação ao servidor. Verifica a tua internet.';
 		}
 	}
+	/*
+	 * Erros que não vêm do axios: o upload directo ao Cloudinary usa `fetch` e
+	 * lança um `Error` já escrito em português. Sem este ramo, a mensagem
+	 * ("A imagem não foi aceite: …") era substituída pelo fallback genérico.
+	 *
+	 * O `TypeError` do `fetch` ("Failed to fetch") não se mostra — é inglês e
+	 * não diz nada a ninguém.
+	 */
+	if (!axios.isAxiosError(error)) {
+		if (error instanceof TypeError) {
+			return 'Sem ligação ao servidor. Verifica a tua internet.';
+		}
+		if (error instanceof Error && error.message.trim().length > 0) {
+			return error.message;
+		}
+	}
 	return fallback;
 }

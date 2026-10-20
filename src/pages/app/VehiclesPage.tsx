@@ -166,11 +166,29 @@ export function VehiclesPage() {
 function AddVehicleDialog({ onClose }: { onClose: () => void }) {
 	const queryClient = useQueryClient();
 	const [form, setForm] = useState(EMPTY);
-	const [photoIds, setPhotoIds] = useState<string[]>([]);
+	const [photos, setPhotos] = useState<File[]>([]);
+	const [progress, setProgress] = useState<string | null>(null);
 	const [errors, setErrors] = useState<Record<string, string | null>>({});
 
 	const create = useMutation({
-		mutationFn: api.createVehicle,
+		/*
+		 * O upload acontece aqui, e não no `PhotoPicker`.
+		 *
+		 * `isPending` passa a cobrir upload + `POST /api/vehicles`: o modal não
+		 * fecha a meio, o botão diz em que foto vai, e uma falha de rede não
+		 * deixa fotos de uma viatura que ninguém chegou a registar.
+		 */
+		mutationFn: async ({
+			files,
+			...input
+		}: Omit<api.CreateVehicleInput, 'photoIds'> & { files: File[] }) => {
+			const photoIds = await api.uploadImages(
+				files,
+				'VEHICLE',
+				(done, total) => setProgress(`A enviar foto ${done}/${total}…`),
+			);
+			return api.createVehicle({ ...input, photoIds });
+		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: qk.vehicles });
 			toast.success('Viatura registada. Fica à espera de revisão.');
@@ -181,6 +199,7 @@ function AddVehicleDialog({ onClose }: { onClose: () => void }) {
 				apiErrorMessage(error, 'Não foi possível registar a viatura.'),
 			);
 		},
+		onSettled: () => setProgress(null),
 	});
 
 	function submit(event: React.FormEvent) {
@@ -208,7 +227,7 @@ function AddVehicleDialog({ onClose }: { onClose: () => void }) {
 					? null
 					: 'A lotação tem de estar entre 2 e 30.',
 			photos:
-				photoIds.length >= 3
+				photos.length >= 3
 					? null
 					: 'Carrega pelo menos 3 fotografias da viatura.',
 		};
@@ -222,7 +241,7 @@ function AddVehicleDialog({ onClose }: { onClose: () => void }) {
 			color: form.color.trim(),
 			plate: form.plate.trim().toUpperCase(),
 			seats,
-			photoIds,
+			files: photos,
 		});
 	}
 
@@ -288,11 +307,10 @@ function AddVehicleDialog({ onClose }: { onClose: () => void }) {
 				/>
 
 				<PhotoPicker
-					ownerType="VEHICLE"
 					min={3}
 					max={6}
-					photoIds={photoIds}
-					onChange={setPhotoIds}
+					files={photos}
+					onChange={setPhotos}
 					label="Fotografias da viatura"
 					hint="Frente, lateral e interior. São elas que a revisão avalia."
 				/>
@@ -310,7 +328,9 @@ function AddVehicleDialog({ onClose }: { onClose: () => void }) {
 						Cancelar
 					</Button>
 					<Button type="submit" disabled={create.isPending}>
-						{create.isPending ? 'A registar…' : 'Registar viatura'}
+						{create.isPending
+							? (progress ?? 'A registar…')
+							: 'Registar viatura'}
 					</Button>
 				</div>
 			</form>

@@ -1,20 +1,15 @@
-import { useRef, useState } from 'react';
-import { ImagePlus, Loader2, X } from 'lucide-react';
-import toast from 'react-hot-toast';
-import * as api from '../../lib/api';
-import { apiErrorMessage } from '../../lib/axios';
-
-type OwnerType = 'VEHICLE' | 'DRIVER_KYC' | 'PASSENGER_KYC' | 'USER';
+import { useRef } from 'react';
+import { ImagePlus, X } from 'lucide-react';
+import { useObjectUrl } from '../../hooks/useObjectUrl';
 
 interface PhotoPickerProps {
-	ownerType: OwnerType;
 	/** Mínimo que o backend exige em `photoIds`. */
 	min?: number;
 	/** Máximo aceite. */
 	max?: number;
-	/** `Media.id` de cada foto já carregada. */
-	photoIds: string[];
-	onChange: (photoIds: string[]) => void;
+	/** Ficheiros escolhidos e **ainda não enviados**. */
+	files: File[];
+	onChange: (files: File[]) => void;
 	label: string;
 	hint?: string;
 }
@@ -30,55 +25,37 @@ interface PhotoPickerProps {
  * nenhuma pelo site. A regra do servidor é a mesma para os dois clientes, e
  * o mobile já a cumpria — aqui estava apenas em falta.
  *
- * As miniaturas são `URL.createObjectURL` do ficheiro local, revogadas ao
- * remover, para a memória do browser não ficar com cada fotografia que passou
- * pelo modal.
+ * Os ficheiros ficam **locais** até ao submit: este componente não fala com a
+ * API. Quem envia é o `AddVehicleDialog`, depois de validar o resto do
+ * formulário — uma viatura que nunca chega a ser registada não deixa fotos
+ * penduradas no Cloudinary.
+ *
+ * As miniaturas são `URL.createObjectURL` do ficheiro local (`useObjectUrl`),
+ * revogadas na troca ou no unmount, para a memória do browser não ficar com
+ * cada fotografia que passou pelo modal.
  */
 export function PhotoPicker({
-	ownerType,
 	min = 3,
 	max = 6,
-	photoIds,
+	files,
 	onChange,
 	label,
 	hint,
 }: PhotoPickerProps) {
 	const inputRef = useRef<HTMLInputElement>(null);
-	const [busy, setBusy] = useState(false);
-	const [previews, setPreviews] = useState<string[]>([]);
 
-	const remaining = max - photoIds.length;
+	const remaining = max - files.length;
 
-	async function handleFiles(files: File[]) {
-		if (files.length === 0) return;
-		setBusy(true);
-		try {
-			const accepted: string[] = [];
-			const urls: string[] = [];
-			for (const file of files.slice(0, remaining)) {
-				const asset = await api.uploadImage(file, ownerType);
-				accepted.push(asset.mediaId);
-				urls.push(URL.createObjectURL(file));
-			}
-			onChange([...photoIds, ...accepted]);
-			setPreviews((current) => [...current, ...urls]);
-		} catch (error) {
-			toast.error(
-				apiErrorMessage(error, 'Não foi possível carregar a imagem.'),
-			);
-		} finally {
-			setBusy(false);
-		}
+	function handleFiles(picked: File[]) {
+		if (picked.length === 0 || remaining <= 0) return;
+		onChange([...files, ...picked.slice(0, remaining)]);
 	}
 
 	function removeAt(index: number) {
-		const url = previews[index];
-		if (url) URL.revokeObjectURL(url);
-		setPreviews(previews.filter((_, i) => i !== index));
-		onChange(photoIds.filter((_, i) => i !== index));
+		onChange(files.filter((_, position) => position !== index));
 	}
 
-	const missing = min - photoIds.length;
+	const missing = min - files.length;
 
 	return (
 		<fieldset>
@@ -86,27 +63,13 @@ export function PhotoPicker({
 			{hint ? <p className="mt-1 text-small text-muted">{hint}</p> : null}
 
 			<div className="mt-3 grid grid-cols-3 gap-3">
-				{photoIds.map((mediaId, index) => (
-					<div
-						key={mediaId}
-						className="relative aspect-square overflow-hidden rounded-lg border border-line bg-canvas"
-					>
-						{previews[index] ? (
-							<img
-								src={previews[index]}
-								alt={`Fotografia ${index + 1}`}
-								className="h-full w-full object-cover"
-							/>
-						) : null}
-						<button
-							type="button"
-							onClick={() => removeAt(index)}
-							aria-label={`Remover fotografia ${index + 1}`}
-							className="absolute right-1 top-1 rounded-full bg-ink/70 p-1.5 text-white transition-colors hover:bg-ink"
-						>
-							<X size={14} aria-hidden="true" />
-						</button>
-					</div>
+				{files.map((file, index) => (
+					<PhotoTile
+						key={`${file.name}-${file.lastModified}-${index}`}
+						file={file}
+						index={index}
+						onRemove={() => removeAt(index)}
+					/>
 				))}
 
 				{remaining > 0 ? (
@@ -117,27 +80,21 @@ export function PhotoPicker({
 							accept="image/jpeg,image/png,image/webp"
 							multiple={remaining > 1}
 							className="sr-only"
-							disabled={busy}
 							onChange={(event) => {
-								const files = Array.from(event.target.files ?? []);
+								const picked = Array.from(event.target.files ?? []);
 								// Limpar o valor permite escolher o mesmo ficheiro
 								// outra vez depois de o trocar.
 								event.target.value = '';
-								void handleFiles(files);
+								handleFiles(picked);
 							}}
 						/>
 						<button
 							type="button"
 							onClick={() => inputRef.current?.click()}
-							disabled={busy}
-							className="flex aspect-square flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-line text-small text-muted transition-colors hover:border-brand hover:text-brand-text disabled:opacity-50"
+							className="flex aspect-square flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-line text-small text-muted transition-colors hover:border-brand hover:text-brand-text"
 						>
-							{busy ? (
-								<Loader2 size={18} aria-hidden="true" />
-							) : (
-								<ImagePlus size={18} aria-hidden="true" />
-							)}
-							{busy ? 'A carregar…' : 'Adicionar'}
+							<ImagePlus size={18} aria-hidden="true" />
+							Adicionar
 						</button>
 					</>
 				) : null}
@@ -150,5 +107,37 @@ export function PhotoPicker({
 				</p>
 			) : null}
 		</fieldset>
+	);
+}
+
+function PhotoTile({
+	file,
+	index,
+	onRemove,
+}: {
+	file: File;
+	index: number;
+	onRemove: () => void;
+}) {
+	const preview = useObjectUrl(file);
+
+	return (
+		<div className="relative aspect-square overflow-hidden rounded-lg border border-line bg-canvas">
+			{preview ? (
+				<img
+					src={preview}
+					alt={`Fotografia ${index + 1}`}
+					className="h-full w-full object-cover"
+				/>
+			) : null}
+			<button
+				type="button"
+				onClick={onRemove}
+				aria-label={`Remover fotografia ${index + 1}`}
+				className="absolute right-1 top-1 rounded-full bg-ink/70 p-1.5 text-white transition-colors hover:bg-ink"
+			>
+				<X size={14} aria-hidden="true" />
+			</button>
+		</div>
 	);
 }

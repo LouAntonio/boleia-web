@@ -262,6 +262,12 @@ export interface UploadSignature {
 	signature: string;
 	publicId: string;
 	resourceType: string;
+	/**
+	 * `private`/`authenticated` quando o asset não é público. Vai **assinado**
+	 * no formulário — o Cloudinary recusa um `type` que não esteja na
+	 * assinatura. Ausente no upload público (é o valor por omissão).
+	 */
+	type?: 'upload' | 'private' | 'authenticated';
 	transformation: string;
 	eager: string;
 	allowedFormats: string;
