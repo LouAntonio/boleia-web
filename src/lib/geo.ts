@@ -11,18 +11,13 @@
  * secção das províncias aparece sempre, mesmo sem servidor em execução, e o
  * site não fica com uma secção em branco à espera de um 401.
  *
- * ## Os nomes estão corrigidos
+ * ## De onde vêm estes nomes
  *
- * A seed do backend passou pelo CP437, a codepage da consola do Windows: um nome
- * com acentos foi escrito em UTF-8 e lido como se fossem bytes de uma tabela de
- * desenho de caixas. "Bié" chegou aqui escrito como "Bi\u251C\u00AE" e "Huíla"
- * como "Hu\u251C\u00A1la" — vinte e uma províncias e localidades com o mesmo
- * defeito.
- *
- * Este ficheiro já corrige. A seed e a base de dados do backend não: enquanto
- * a seed não for regenerada, `GET /api/locality/provinces` continua a devolver
- * "Bié" escrito como "Bi\u251C\u00AE", e o selector de províncias da app vai
- * herdar o mesmo.
+ * A lista saiu da seed do backend quando essa seed ainda estava em mojibake: o
+ * texto foi escrito em UTF-8 e lido como CP850 — a codepage da consola do
+ * Windows em português —, e "Bié" chegou aqui escrito como "Bi\u251C\u00AE".
+ * Esta cópia foi corrigida à mão; a seed e a base de dados foram corrigidas
+ * depois, e `GET /api/locality/provinces` devolve hoje os mesmos nomes.
  *
  * Se os nomes mudarem no backend, mudam aqui. O `typecheck` não apanha essa
  * diferença — só uma pessoa a confirmar.
@@ -58,7 +53,7 @@ export const PROVINCES: GeoProvince[] = [
 	{ name: 'Zaire', capital: "M'Banza Kongo", lat: -6.27, lng: 14.24 },
 ];
 
-/** Opíões para um `select` de províncias. */
+/** Opções para um `select` de províncias. */
 export const PROVINCE_OPTIONS = PROVINCES.map((province) => ({
 	value: province.name,
 	label: province.name,

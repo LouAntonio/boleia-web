@@ -171,14 +171,14 @@ logo abaixo.
 ## O `RoadTrack` e a lista de províncias
 
 `src/lib/geo.ts` vem da seed do backend (`back/prisma/seed/angola-localities.json`),
-**com os nomes corrigidos**. A seed passou pelo CP437, a codepage da consola do
-Windows: um nome com acentos foi escrito em UTF-8 e lido como se fossem bytes de
-uma tabela de desenho de caixas. `Bié` chegou a `Bi├®` e `Huíla` a `Hu├¡la`.
+**com os nomes corrigidos**. Essa seed tinha passado pelo CP850, a codepage da
+consola do Windows em português: um nome com acentos foi escrito em UTF-8 e lido
+como se fossem bytes de uma tabela de desenho de caixas — `Bié` chegou a `Bi├®`.
 
-O ficheiro local já corrige. A seed e a base de dados do backend **não** —
-enquanto isso, `/api/locality/provinces` continua a devolver os nomes
-corrompidos, e o selector de destinos da app vai herdar o mesmo. O mesmo problema
-afecta as 21 províncias e mais localidades nos `name`.
+A seed e a base de dados já foram corrigidas (o JSON está em UTF-8 e há um script
+de reparação em `back/scripts/repair-locality-encoding.ts`), por isso
+`/api/locality/provinces` devolve hoje os mesmos nomes que este ficheiro. O `name`
+das províncias e das localidades está certo dos dois lados.
 
 ## Google
 
