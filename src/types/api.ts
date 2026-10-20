@@ -149,6 +149,39 @@ export interface PublicRide {
 	 */
 }
 
+/**
+ * Paragem de uma corrida no detalhe público.
+ *
+ * Ao contrário da listagem, o detalhe traz as paragens. A província vem junto
+ * para que a página consiga dizer se a viagem é intermunicipal ou
+ * interprovincial sem comparar nomes de localidades.
+ */
+export interface PublicRideStop extends RideStop {
+	distanceKm: number;
+	locality: {
+		provinceId: string | null;
+		province: { name: string } | null;
+	} | null;
+}
+
+/** `GET /api/rides/public/:id` — link partilhado, sem sessão. */
+export interface PublicRideDetail {
+	id: string;
+	routeName: string;
+	departureAt: string;
+	arrivalAt: string;
+	seatsTotal: number;
+	seatsTaken: number;
+	pricePerSeat: number;
+	status: RideStatus;
+	progressIndex: number;
+	stops: PublicRideStop[];
+	/** Só o nome. Sem id, telefone ou email — ver `getPublicRide` no backend. */
+	driverName: string | null;
+	/** Sem matrícula: o carro reconhece-se pela marca, modelo e cor. */
+	vehicle: { make: string; model: string; color: string } | null;
+}
+
 /* ---------- Reservas ---------- */
 
 export type BookingStatus =
@@ -200,6 +233,8 @@ export interface Booking {
 	passenger?: {
 		id: string;
 		name: string;
+		/** Só no painel do motorista: é o número para combinar o embarque. */
+		phone?: string | null;
 	};
 }
 

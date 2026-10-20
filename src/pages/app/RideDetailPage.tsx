@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, BusFront, Clock, MapPin, User } from 'lucide-react';
+import { ArrowLeft, BusFront, Clock, MapPin, Share2, User } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useRide, useBookRide } from '../../hooks/useRides';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -49,6 +50,22 @@ export function RideDetailPage() {
 	const ownRide = ride.driverId === userId;
 
 	const stops = (ride.stops ?? []).filter((stop) => Boolean(stop.name));
+	const publicPath = `/viagens/${ride.id}`;
+	const shareTitle = `${ride.routeName} · Boleia`;
+
+	async function share() {
+		const url = `${window.location.origin}${publicPath}`;
+		try {
+			if (navigator.share) {
+				await navigator.share({ title: shareTitle, url });
+				return;
+			}
+			await navigator.clipboard.writeText(url);
+			toast.success('Link copiado. Já o podes enviar.');
+		} catch {
+			// Cancelar a partilha não é erro.
+		}
+	}
 
 	return (
 		<div className="flex flex-col gap-8">
@@ -63,13 +80,25 @@ export function RideDetailPage() {
 			<header className="flex flex-wrap items-start justify-between gap-4">
 				<div>
 					<h1 className="text-h2 text-ink">{ride.routeName}</h1>
-					<p className="mt-2 flex items-center gap-2 text-body text-muted">
-						<Clock size={16} aria-hidden="true" />
-						{fmtLongDate(ride.departureAt)}, {hhmm(ride.departureAt)}
+					<p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-body text-muted">
+						<span className="inline-flex items-center gap-2">
+							<Clock size={16} aria-hidden="true" />
+							{fmtLongDate(ride.departureAt)},{' '}
+							{hhmm(ride.departureAt)}
+						</span>
+						<span className="rounded-full bg-canvas px-2.5 py-0.5 text-small font-medium text-ink">
+							{durationBetween(ride.departureAt, ride.arrivalAt)}
+						</span>
 					</p>
 				</div>
 
-				<StatusStamp status={ride.status} />
+				<div className="flex flex-wrap items-center gap-2">
+					<Button variant="secondary" onClick={() => void share()}>
+						<Share2 size={16} aria-hidden="true" />
+						Partilhar
+					</Button>
+					<StatusStamp status={ride.status} />
+				</div>
 			</header>
 
 			{/* O percurso, com hora e distância de cada paragem. */}
@@ -242,9 +271,17 @@ function BookingPanel({
 
 	if (ownRide) {
 		return (
-			<p className="mt-6 rounded-md bg-brand-soft px-4 py-3 text-small text-brand-text">
-				Esta boleia é tua. Gere os pedidos de lugar no painel.
-			</p>
+			<div className="mt-6 flex flex-col gap-3">
+				<p className="rounded-md bg-brand-soft px-4 py-3 text-small text-brand-text">
+					Esta boleia é tua. Os pedidos e os controlos da viagem estão na
+					página de gestão.
+				</p>
+				<Link to={`/app/painel/viagens/${rideId}`}>
+					<Button full variant="secondary">
+						Gerir boleia
+					</Button>
+				</Link>
+			</div>
 		);
 	}
 

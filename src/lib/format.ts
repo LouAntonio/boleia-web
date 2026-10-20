@@ -80,7 +80,12 @@ export function fmtDuration(totalMinutes: number): string {
 }
 
 export function durationBetween(fromISO: string, toISO: string): string {
-	return fmtDuration((Date.parse(toISO) - Date.parse(fromISO)) / 60000);
+	const from = Date.parse(fromISO);
+	const to = Date.parse(toISO);
+	if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) {
+		return 'Duração a confirmar';
+	}
+	return fmtDuration((to - from) / 60000);
 }
 
 /** "a hoje" / "amanhã" / "sex, 10 out", para agrupar a lista por dia. */

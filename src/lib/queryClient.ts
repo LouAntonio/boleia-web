@@ -43,6 +43,7 @@ export const qk = {
 	session: ['auth', 'session'] as const,
 	rides: (query: unknown) => ['rides', 'list', query] as const,
 	ride: (id: string) => ['rides', 'detail', id] as const,
+	publicRide: (id: string) => ['public', 'rides', 'detail', id] as const,
 	myRides: ['rides', 'mine'] as const,
 	myBookings: ['bookings', 'mine'] as const,
 	rideBookings: (id: string) => ['bookings', 'ride', id] as const,

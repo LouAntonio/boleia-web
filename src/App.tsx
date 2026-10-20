@@ -44,6 +44,14 @@ const TermsPage = lazyPage(
 	() => import('./pages/institutional/TermsPage'),
 	'TermsPage',
 );
+const PublicRidePage = lazyPage(
+	() => import('./pages/public/PublicRidePage'),
+	'PublicRidePage',
+);
+const DriverRideDetailPage = lazyPage(
+	() => import('./pages/app/DriverRideDetailPage'),
+	'DriverRideDetailPage',
+);
 
 import { SignInPage } from './pages/auth/SignInPage';
 import { SignUpPage } from './pages/auth/SignUpPage';
@@ -182,6 +190,9 @@ export function App() {
 					<Route path="/contacto" element={<ContactPage />} />
 					<Route path="/privacidade" element={<PrivacyPage />} />
 					<Route path="/termos" element={<TermsPage />} />
+
+					{/* Link partilhado: tem de abrir sem sessão. */}
+					<Route path="/viagens/:id" element={<PublicRidePage />} />
 				</Route>
 
 				{/* Autenticação. Quem já entrou é levado para a app. */}
@@ -230,6 +241,10 @@ export function App() {
 					<Route path="/app/viagens/:id" element={<RideDetailPage />} />
 					<Route path="/app/reservas" element={<BookingsPage />} />
 					<Route path="/app/painel" element={<DriverBoardPage />} />
+					<Route
+						path="/app/painel/viagens/:id"
+						element={<DriverRideDetailPage />}
+					/>
 					<Route path="/app/publicar" element={<PublishRidePage />} />
 					<Route path="/app/viaturas" element={<VehiclesPage />} />
 					<Route path="/app/kyc" element={<KycPage />} />

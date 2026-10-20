@@ -10,12 +10,31 @@ import { usePageTitle } from '../../hooks/usePageMeta';
 import { PROVINCES, municipalitiesOf } from '../../lib/locations';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
+import { SegmentedControl } from '../../components/ui/SegmentedControl';
 import { Field } from '../../components/ui/Field';
 import { Card } from '../../components/ui/Card';
 import { RoadTrack } from '../../components/marketing/RoadTrack';
 import { SeatGrid } from '../../components/ui/SeatGrid';
-import { formatKzInput, parseKzInput, fmtKz, toDateInput } from '../../lib/format';
+import {
+	formatKzInput,
+	parseKzInput,
+	fmtKz,
+	fmtDuration,
+	toDateInput,
+} from '../../lib/format';
 import type { Vehicle } from '../../types/api';
+
+type TripMode = 'intermunicipal' | 'interprovincial';
+
+const MODE_OPTIONS: { value: string; label: string }[] = [
+	{ value: 'intermunicipal', label: 'Intermunicipal' },
+	{ value: 'interprovincial', label: 'Interprovincial' },
+];
+
+const MINUTE_OPTIONS = [
+	{ value: '0', label: '00' },
+	{ value: '30', label: '30' },
+];
 
 /*
  * Publicar uma boleia em três passos.
@@ -36,14 +55,29 @@ export function PublishRidePage() {
 	const [step, setStep] = useState(0);
 	const [busy, setBusy] = useState(false);
 
-	// Rota e dia
-	const [originProvince, setOriginProvince] = useState('');
-	const [originLocality, setOriginLocality] = useState('');
-	const [destProvince, setDestProvince] = useState('');
-	const [destLocality, setDestLocality] = useState('');
+	/*
+	 * O modo é uma escolha explícita e sem valor por omissão. A rota não
+	 * aparece enquanto não houver modo: em vez de adivinhar pelas províncias,
+	 * o formulário diz o que vai pedir e pede a decisão primeiro.
+	 */
+	const [mode, setMode] = useState<TripMode | null>(null);
+
+	// Intermunicipal: uma província para os dois lados.
+	const [municipalProvince, setMunicipalProvince] = useState('');
+	const [municipalOrigin, setMunicipalOrigin] = useState('');
+	const [municipalDestination, setMunicipalDestination] = useState('');
+
+	// Interprovincial: uma província e um município de cada lado.
+	const [provincialOriginProvince, setProvincialOriginProvince] = useState('');
+	const [provincialOrigin, setProvincialOrigin] = useState('');
+	const [provincialDestinationProvince, setProvincialDestinationProvince] =
+		useState('');
+	const [provincialDestination, setProvincialDestination] = useState('');
+
 	const [date, setDate] = useState(toDateInput(new Date().toISOString()));
 	const [departTime, setDepartTime] = useState('06:00');
-	const [duration, setDuration] = useState('360');
+	const [durationHours, setDurationHours] = useState('6');
+	const [durationMinutes, setDurationMinutes] = useState('0');
 
 	// Preço e viatura
 	const [seatsTotal, setSeatsTotal] = useState('8');
@@ -55,16 +89,39 @@ export function PublishRidePage() {
 		label: province.name,
 	}));
 
-	const originOptions = municipalitiesOf(originProvince).map((municipality) => ({
+	const fromProvince =
+		mode === 'intermunicipal'
+			? municipalProvince
+			: mode === 'interprovincial'
+				? provincialOriginProvince
+				: '';
+	const toProvince =
+		mode === 'intermunicipal'
+			? municipalProvince
+			: mode === 'interprovincial'
+				? provincialDestinationProvince
+				: '';
+	const fromLocality =
+		mode === 'intermunicipal'
+			? municipalOrigin
+			: mode === 'interprovincial'
+				? provincialOrigin
+				: '';
+	const toLocality =
+		mode === 'intermunicipal'
+			? municipalDestination
+			: mode === 'interprovincial'
+				? provincialDestination
+				: '';
+
+	const fromOptions = municipalitiesOf(fromProvince).map((municipality) => ({
 		value: municipality.code,
 		label: municipality.name,
 	}));
-	const destinationOptions = municipalitiesOf(destProvince).map(
-		(municipality) => ({
-			value: municipality.code,
-			label: municipality.name,
-		}),
-	);
+	const toOptions = municipalitiesOf(toProvince).map((municipality) => ({
+		value: municipality.code,
+		label: municipality.name,
+	}));
 
 	const { data: vehicles = [] } = useQuery({
 		queryKey: qk.vehicles,
@@ -74,23 +131,78 @@ export function PublishRidePage() {
 	const verifiedVehicles = vehicles.filter((v) => v.status === 'VERIFIED');
 
 	const originName =
-		originOptions.find((o) => o.value === originLocality)?.label ?? '';
-	const destName =
-		destinationOptions.find((o) => o.value === destLocality)?.label ?? '';
+		fromOptions.find((o) => o.value === fromLocality)?.label ?? '';
+	const destName = toOptions.find((o) => o.value === toLocality)?.label ?? '';
+	const originProvinceName =
+		PROVINCES.find((p) => p.code === fromProvince)?.name ?? '';
+	const destinationProvinceName =
+		PROVINCES.find((p) => p.code === toProvince)?.name ?? '';
 	const vehicle = verifiedVehicles.find((v) => v.id === vehicleId);
 	const priceValue = parseKzInput(price);
 
+	const durationTotal =
+		(Number(durationHours) || 0) * 60 + (Number(durationMinutes) || 0);
+	const durationValid = durationTotal >= 30 && durationTotal <= 24 * 60;
+
+	const departureDate =
+		date && departTime ? new Date(`${date}T${departTime}:00`) : null;
+	const arrivalDate =
+		departureDate && durationValid
+			? new Date(departureDate.getTime() + durationTotal * 60000)
+			: null;
+
+	const sameProvince =
+		mode === 'interprovincial' &&
+		!!fromProvince &&
+		!!toProvince &&
+		fromProvince === toProvince;
+
+	const routeSummary =
+		mode && originName && destName
+			? mode === 'intermunicipal'
+				? `Intermunicipal · ${originProvinceName}: ${originName} → ${destName}`
+				: `Interprovincial · ${originProvinceName} (${originName}) → ${destinationProvinceName} (${destName})`
+			: null;
+
+	function changeMode(next: TripMode) {
+		if (next === mode) return;
+		setMode(next);
+		// As escolhas de um modo não valem no outro: um código de município e
+		// uma província vivem em espaços diferentes.
+		setMunicipalProvince('');
+		setMunicipalOrigin('');
+		setMunicipalDestination('');
+		setProvincialOriginProvince('');
+		setProvincialOrigin('');
+		setProvincialDestinationProvince('');
+		setProvincialDestination('');
+	}
+
 	function canLeaveStep0(): boolean {
-		if (!originLocality || !destLocality) {
+		if (!mode) {
+			toast.error('Escolhe se a viagem é intermunicipal ou interprovincial.');
+			return false;
+		}
+		if (!fromLocality || !toLocality) {
 			toast.error('Escolhe a origem e o destino.');
 			return false;
 		}
-		if (originLocality === destLocality) {
+		if (fromLocality === toLocality) {
 			toast.error('A origem e o destino não podem ser o mesmo sítio.');
+			return false;
+		}
+		if (sameProvince) {
+			toast.error(
+				'Numa viagem interprovincial, as províncias têm de ser diferentes. Para a mesma província, escolhe Intermunicipal.',
+			);
 			return false;
 		}
 		if (!date) {
 			toast.error('Escolhe o dia da viagem.');
+			return false;
+		}
+		if (!durationValid) {
+			toast.error('A duração tem de ficar entre 30 minutos e 24 horas.');
 			return false;
 		}
 		return true;
@@ -113,19 +225,19 @@ export function PublishRidePage() {
 	}
 
 	async function publish() {
+		if (!fromLocality || !toLocality || !departureDate || !arrivalDate) {
+			toast.error('Falta a rota ou o horário da viagem.');
+			return;
+		}
+
 		setBusy(true);
 		try {
-			const departure = new Date(`${date}T${departTime}:00`);
-			const arrival = new Date(
-				departure.getTime() + Number(duration) * 60000,
-			);
-
 			const ride = await api.createRide({
 				vehicleId,
-				originLocalityId: originLocality,
-				destinationLocalityId: destLocality,
-				departureAt: departure.toISOString(),
-				arrivalAt: arrival.toISOString(),
+				originLocalityId: fromLocality,
+				destinationLocalityId: toLocality,
+				departureAt: departureDate.toISOString(),
+				arrivalAt: arrivalDate.toISOString(),
 				pricePerSeat: priceValue,
 				seatsTotal: Number(seatsTotal),
 			});
@@ -199,53 +311,123 @@ export function PublishRidePage() {
 			{/* Passo 1 — rota e dia. */}
 			{step === 0 ? (
 				<Card className="flex flex-col gap-6 p-6">
-					<div className="grid gap-5 sm:grid-cols-2">
-						<div className="flex flex-col gap-4">
-							<h2 className="text-h3 text-ink">Saída</h2>
-							<Select
-								label="Província"
-								value={originProvince}
-								onChange={(value) => {
-									setOriginProvince(value);
-									setOriginLocality('');
-								}}
-								options={provinceOptions}
-								placeholder="Escolhe"
-							/>
-							<Select
-								label="Cidade"
-								value={originLocality}
-								onChange={setOriginLocality}
-								options={originOptions}
-								placeholder="Escolhe"
-								disabled={!originProvince}
-							/>
-						</div>
-
-						<div className="flex flex-col gap-4">
-							<h2 className="text-h3 text-ink">Chegada</h2>
-							<Select
-								label="Província"
-								value={destProvince}
-								onChange={(value) => {
-									setDestProvince(value);
-									setDestLocality('');
-								}}
-								options={provinceOptions}
-								placeholder="Escolhe"
-							/>
-							<Select
-								label="Cidade"
-								value={destLocality}
-								onChange={setDestLocality}
-								options={destinationOptions}
-								placeholder="Escolhe"
-								disabled={!destProvince}
-							/>
-						</div>
+					<div className="flex flex-col gap-3">
+						<h2 className="text-h3 text-ink">Tipo de viagem</h2>
+						<SegmentedControl<string>
+							options={MODE_OPTIONS}
+							value={mode ?? ''}
+							onChange={(next) => changeMode(next as TripMode)}
+							label="Tipo de viagem"
+						/>
+						<p className="text-small text-muted">
+							{mode === 'intermunicipal'
+								? 'A saída e a chegada ficam na mesma província. Escolhes a província e dois municípios.'
+								: mode === 'interprovincial'
+									? 'A saída e a chegada ficam em províncias diferentes. Escolhes as duas províncias e os municípios.'
+									: 'Escolhe primeiro o tipo de viagem. É isso que decide que campos aparecem a seguir.'}
+						</p>
 					</div>
 
-					<div className="grid gap-5 border-t border-line pt-6 sm:grid-cols-3">
+					{mode === 'intermunicipal' ? (
+						<div className="grid gap-5 border-t border-line pt-6 sm:grid-cols-3">
+							<Select
+								label="Província"
+								value={municipalProvince}
+								onChange={(value) => {
+									setMunicipalProvince(value);
+									setMunicipalOrigin('');
+									setMunicipalDestination('');
+								}}
+								options={provinceOptions}
+								placeholder="Escolhe"
+							/>
+							<Select
+								label="Município de saída"
+								value={municipalOrigin}
+								onChange={setMunicipalOrigin}
+								options={fromOptions}
+								placeholder="Escolhe"
+								disabled={!municipalProvince}
+							/>
+							<Select
+								label="Município de chegada"
+								value={municipalDestination}
+								onChange={setMunicipalDestination}
+								options={toOptions}
+								placeholder="Escolhe"
+								disabled={!municipalProvince}
+							/>
+						</div>
+					) : null}
+
+					{mode === 'interprovincial' ? (
+						<>
+							<div className="grid gap-5 border-t border-line pt-6 sm:grid-cols-2">
+								<div className="flex flex-col gap-4">
+									<h2 className="text-h3 text-ink">Saída</h2>
+									<Select
+										label="Província"
+										value={provincialOriginProvince}
+										onChange={(value) => {
+											setProvincialOriginProvince(value);
+											setProvincialOrigin('');
+										}}
+										options={provinceOptions}
+										placeholder="Escolhe"
+									/>
+									<Select
+										label="Município"
+										value={provincialOrigin}
+										onChange={setProvincialOrigin}
+										options={fromOptions}
+										placeholder="Escolhe"
+										disabled={!provincialOriginProvince}
+									/>
+								</div>
+
+								<div className="flex flex-col gap-4">
+									<h2 className="text-h3 text-ink">Chegada</h2>
+									<Select
+										label="Província"
+										value={provincialDestinationProvince}
+										onChange={(value) => {
+											setProvincialDestinationProvince(value);
+											setProvincialDestination('');
+										}}
+										options={provinceOptions}
+										placeholder="Escolhe"
+									/>
+									<Select
+										label="Município"
+										value={provincialDestination}
+										onChange={setProvincialDestination}
+										options={toOptions}
+										placeholder="Escolhe"
+										disabled={!provincialDestinationProvince}
+									/>
+								</div>
+							</div>
+
+							{sameProvince ? (
+								<p className="text-small text-alert">
+									As duas províncias são iguais. Para uma viagem
+									dentro da mesma província, escolhe{' '}
+									<span className="font-medium">
+										Intermunicipal
+									</span>
+									.
+								</p>
+							) : null}
+						</>
+					) : null}
+
+					{routeSummary ? (
+						<p className="rounded-md bg-brand-soft px-4 py-3 text-small text-brand-text">
+							{routeSummary}
+						</p>
+					) : null}
+
+					<div className="grid gap-5 border-t border-line pt-6 sm:grid-cols-4">
 						<Field
 							label="Dia"
 							type="date"
@@ -258,29 +440,29 @@ export function PublishRidePage() {
 							value={departTime}
 							onChange={(event) => setDepartTime(event.target.value)}
 						/>
-						<div>
-							<label
-								htmlFor="duracao"
-								className="text-label text-ink"
-							>
-								Duração da viagem
-							</label>
-							<select
-								id="duracao"
-								value={duration}
-								onChange={(event) =>
-									setDuration(event.target.value)
-								}
-								className="mt-1.5 h-11 w-full rounded-md border border-line bg-surface px-3 text-body text-ink focus:border-brand"
-							>
-								<option value="120">2 horas</option>
-								<option value="240">4 horas</option>
-								<option value="360">6 horas</option>
-								<option value="480">8 horas</option>
-								<option value="600">10 horas</option>
-							</select>
-						</div>
+						<Field
+							label="Duração (horas)"
+							type="number"
+							min={0}
+							max={24}
+							value={durationHours}
+							onChange={(event) =>
+								setDurationHours(event.target.value)
+							}
+						/>
+						<Select
+							label="Minutos"
+							value={durationMinutes}
+							onChange={setDurationMinutes}
+							options={MINUTE_OPTIONS}
+						/>
 					</div>
+
+					<p className="-mt-3 text-small text-muted">
+						{arrivalDate && !Number.isNaN(arrivalDate.getTime())
+							? `Chegada prevista: ${fmtArrival(arrivalDate)} · ${fmtDuration(durationTotal)}.`
+							: 'Define uma duração entre 30 minutos e 24 horas.'}
+					</p>
 
 					<StepFooter
 						onNext={() => canLeaveStep0() && setStep(1)}
@@ -407,12 +589,41 @@ export function PublishRidePage() {
 							height={140}
 							stops={[
 								{ name: originName, time: departTime },
-								{ name: destName, time: '—' },
+								{
+									name: destName,
+									time: arrivalDate ? fmtTime(arrivalDate) : '—',
+								},
 							]}
 						/>
 					</div>
 
 					<dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
+						<SummaryItem
+							label="Tipo de viagem"
+							value={
+								mode === 'intermunicipal'
+									? 'Intermunicipal'
+									: mode === 'interprovincial'
+										? 'Interprovincial'
+										: '—'
+							}
+						/>
+						<SummaryItem
+							label="Origem"
+							value={
+								originName
+									? `${originName} · ${originProvinceName}`
+									: '—'
+							}
+						/>
+						<SummaryItem
+							label="Destino"
+							value={
+								destName
+									? `${destName} · ${destinationProvinceName}`
+									: '—'
+							}
+						/>
 						<SummaryItem
 							label="Dia"
 							value={
@@ -426,6 +637,14 @@ export function PublishRidePage() {
 							}
 						/>
 						<SummaryItem label="Saída" value={departTime} />
+						<SummaryItem
+							label="Chegada"
+							value={arrivalDate ? fmtArrival(arrivalDate) : '—'}
+						/>
+						<SummaryItem
+							label="Duração"
+							value={durationValid ? fmtDuration(durationTotal) : '—'}
+						/>
 						<SummaryItem label="Lugares" value={seatsTotal} />
 						<SummaryItem
 							label="Preço por lugar"
@@ -455,6 +674,21 @@ export function PublishRidePage() {
 			) : null}
 		</div>
 	);
+}
+
+function fmtTime(value: Date): string {
+	return value.toLocaleTimeString('pt-PT', {
+		hour: '2-digit',
+		minute: '2-digit',
+	});
+}
+
+function fmtArrival(value: Date): string {
+	return `${value.toLocaleDateString('pt-PT', {
+		weekday: 'short',
+		day: 'numeric',
+		month: 'short',
+	})} · ${fmtTime(value)}`;
 }
 
 function StepFooter({

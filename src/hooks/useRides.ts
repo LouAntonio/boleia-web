@@ -28,6 +28,16 @@ export function useRide(id: string) {
 	});
 }
 
+/** Detalhe público, para quem abre um link partilhado sem sessão. */
+export function usePublicRide(id: string) {
+	return useQuery({
+		queryKey: qk.publicRide(id),
+		queryFn: () => api.fetchPublicRide(id),
+		staleTime: 30_000,
+		enabled: Boolean(id),
+	});
+}
+
 /** Corridas publicadas por quem está a ver. O painel do motorista. */
 export function useMyRides(status?: string) {
 	return useQuery({

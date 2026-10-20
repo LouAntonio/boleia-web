@@ -22,6 +22,7 @@ import type {
 	Paged,
 	PaymentMethod,
 	PublicRide,
+	PublicRideDetail,
 	Ride,
 	RideStatus,
 	SessionUser,
@@ -208,6 +209,20 @@ export async function listRides(
 
 export async function fetchRide(id: string): Promise<Ride> {
 	const { data } = await apiClient.get<Ride>(`/api/rides/${id}`);
+	return data;
+}
+
+/**
+ * Detalhe público de uma corrida, para o link partilhado.
+ *
+ * Não usa `fetchRide`: aquele endpoint exige sessão e devolve telefone do
+ * motorista e matrícula. Este é a projecção pública, e é a única que a página
+ * `/viagens/:id` pode pedir sem sessão.
+ */
+export async function fetchPublicRide(id: string): Promise<PublicRideDetail> {
+	const { data } = await apiClient.get<PublicRideDetail>(
+		`/api/rides/public/${id}`,
+	);
 	return data;
 }
 
