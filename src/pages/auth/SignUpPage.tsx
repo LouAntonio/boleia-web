@@ -15,6 +15,7 @@ import {
 	phonePlaceholder,
 } from '../../lib/phone';
 import { apiErrorMessage } from '../../lib/axios';
+import { carryRouteIntent } from '../../lib/route-intent';
 
 export function SignUpPage() {
 	const [params] = useSearchParams();
@@ -30,10 +31,12 @@ export function SignUpPage() {
 	const [bad, setBad] = useState<Record<string, string | null>>({});
 	const [busy, setBusy] = useState(false);
 
-	// A pesquisa da hero passa a origem e o destino. Chegam aqui para não se
-	// perderem, e voltam a ser repostos quando o passageiro entra.
-	const from = params.get('de');
-	const to = params.get('para');
+	/*
+	 * A pesquisa da hero passa a origem, o destino e o modo. Não se mostra
+	 * nada aqui, mas os parâmetros têm de atravessar o registo: quem escolheu
+	 * "Luanda → Benguela" não a quer perder por ter de criar conta. A lista de
+	 * chaves vive em `route-intent.ts`, partilhada com o `VerifyPage`.
+	 */
 
 	/**
 	 * Marca um campo como errado e diz se passou.
@@ -78,8 +81,7 @@ export function SignUpPage() {
 			 * que não consegue usar.
 			 */
 			const next = new URLSearchParams({ phone: phone.trim() });
-			if (from) next.set('de', from);
-			if (to) next.set('para', to);
+			carryRouteIntent(params, next);
 
 			toast.success('Enviámos um código para o teu telemóvel.');
 			navigate(`/verificar?${next}`, { replace: true });

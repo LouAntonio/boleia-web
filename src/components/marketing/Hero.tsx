@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { LocalityFilter } from '../rides/LocalityFilter';
+import { ProvinceFilter } from '../rides/ProvinceFilter';
 import { useProvinces } from '../../hooks/useLocalities';
 
 /**
@@ -39,13 +40,22 @@ export function Hero() {
 	const [origin, setOrigin] = useState('');
 	const [destination, setDestination] = useState('');
 	const [provinceId, setProvinceId] = useState('');
+	/**
+	 * As províncias de origem e de destino, em estado à parte dos municípios.
+	 *
+	 * Um id de província e um id de município vivem em espaços diferentes, e
+	 * partilhar o campo obrigaria a lembrar a cada linha qual dos dois está lá.
+	 */
+	const [fromProvince, setFromProvince] = useState('');
+	const [toProvince, setToProvince] = useState('');
 
 	/*
-	 * As 21 províncias só se pedem no modo intermunicipal.
+	 * As 21 províncias só se pedem no modo intermunicipal, onde há um selector
+	 * de província a mostrar. No interprovincial quem pede a lista é o
+	 * `ProvinceFilter`, e só quando alguém o abre.
 	 *
-	 * `useProvinces` aceita um `enabled`: fora desse modo o selector não está
+	 * `useProvinces` aceita um `enabled`: fora desse modo o `Select` não está
 	 * no ecrã, e pedir a lista seria pagar 21 respostas para desenhar nada.
-	 * O mesmo `localities`, que já é `lazy` dentro do `LocalityFilter`.
 	 */
 	const municipal = mode === 'intermunicipal';
 	const provinces = useProvinces(municipal);
@@ -62,15 +72,23 @@ export function Hero() {
 	 * entrar já com o destino escolhido. O botão existe para isso, e para não
 	 * haver nenhum pedido disparado enquanto ela ainda não escolheu.
 	 */
-	const ready = Boolean(origin && destination);
+	/*
+	 * O botão só acende com o que este modo pede: duas províncias no
+	 * interprovincial, dois municípios no intermunicipal. Um único predicado
+	 * para os dois, senão o botão fica cinzento por um campo que nem existe no
+	 * ecrã à frente da pessoa.
+	 */
+	const ready = municipal
+		? Boolean(provinceId && origin && destination)
+		: Boolean(fromProvince && toProvince);
 
 	/*
-	 * Trocar de modo tem de limpar a província, e escolher uma província tem de
-	 * limpar as localidades que ficaram fora dela.
+	 * Trocar de modo limpa as quatro escolhas, e escolher uma província limpa
+	 * as localidades que ficaram fora dela.
 	 *
-	 * Sem isto o filtro activo era invisível: estava-se em "intermunicipal" com
-	 * uma origem em Benguela porque a província vinha do modo anterior, e a
-	 * pesquisa devolvia resultados que o rótulo não prometia.
+	 * Sem isto o filtro activo era invisível: estar em "intermunicipal" com uma
+	 * origem em Benguela porque a província vinha do modo anterior, e a pesquisa
+	 * devolveria resultados que o rótulo não promete.
 	 */
 	function changeMode(next: 'interprovincial' | 'intermunicipal') {
 		if (next === mode) return;
@@ -78,6 +96,8 @@ export function Hero() {
 		setProvinceId('');
 		setOrigin('');
 		setDestination('');
+		setFromProvince('');
+		setToProvince('');
 	}
 
 	function changeProvince(next: string) {
@@ -123,12 +143,27 @@ export function Hero() {
 					className="mt-10 max-w-2xl"
 					onSubmit={(event) => {
 						event.preventDefault();
+						/*
+						 * Os parâmetros não são os mesmos nos dois modos, e
+						 * têm nomes diferentes de propósito: `de`/`para`
+						 * levam sempre municípios, `deProvincia`/`paraProvincia`
+						 * levam sempre províncias. Reutilizar os mesmos nomes
+						 * obrigaria o `SignUpPage` a adivinhar, pelo `modo`,
+						 * em que espaço de ids está cada valor — e a
+						 * adivinhação erra no dia em que os dois modos
+						 * coexistirem num link.
+						 */
 						const params = new URLSearchParams();
 						params.set('modo', mode);
-						if (municipal && provinceId)
-							params.set('provincia', provinceId);
-						if (origin) params.set('de', origin);
-						if (destination) params.set('para', destination);
+						if (municipal) {
+							if (provinceId) params.set('provincia', provinceId);
+							if (origin) params.set('de', origin);
+							if (destination) params.set('para', destination);
+						} else {
+							if (fromProvince)
+								params.set('deProvincia', fromProvince);
+							if (toProvince) params.set('paraProvincia', toProvince);
+						}
 						window.location.href = `/criar-conta?${params.toString()}`;
 					}}
 				>
@@ -165,50 +200,84 @@ export function Hero() {
 						</div>
 					) : null}
 
-					<div className="mt-4 grid gap-3 sm:grid-cols-2">
-						<LocalityFilter
-							label="De onde"
-							value={origin}
-							onChange={setOrigin}
-							exclude={destination}
-							placeholder="Escolhe o ponto de partida"
-							restrictToProvinceId={
-								municipal ? provinceId || null : null
-							}
-							lazy
-						/>
-						<LocalityFilter
-							label="Para onde"
-							value={destination}
-							onChange={setDestination}
-							exclude={origin}
-							placeholder="Escolhe o destino"
-							restrictToProvinceId={
-								municipal ? provinceId || null : null
-							}
-							lazy
-						/>
-					</div>
+					{/*
+					 * Cada modo tem os seus dois filtros, e são de coisas
+					 * diferentes.
+					 *
+					 * **Interprovincial**: província → província. É o que a
+					 * pessoa escolhe quando quer ir de Luanda a Benguela, e é
+					 * o que o `originProvinceId`/`destinationProvinceId` do
+					 * `GET /api/rides` filtra.
+					 *
+					 * **Intermunicipal**: município → município, com a
+					 * província acima a restringir o universo de escolha.
+					 *
+					 * Os dois pares não se misturam: trocar de modo limpa-os
+					 * (ver `changeMode`), e um id de província nunca é
+					 * enviado como se fosse um município.
+					 */}
+					{municipal ? (
+						<div className="mt-4 grid gap-3 sm:grid-cols-2">
+							<LocalityFilter
+								label="De onde"
+								value={origin}
+								onChange={setOrigin}
+								exclude={destination}
+								placeholder="Escolhe o ponto de partida"
+								restrictToProvinceId={provinceId || null}
+								lazy
+							/>
+							<LocalityFilter
+								label="Para onde"
+								value={destination}
+								onChange={setDestination}
+								exclude={origin}
+								placeholder="Escolhe o destino"
+								restrictToProvinceId={provinceId || null}
+								lazy
+							/>
+						</div>
+					) : (
+						<div className="mt-4 grid gap-3 sm:grid-cols-2">
+							<ProvinceFilter
+								label="De onde"
+								value={fromProvince}
+								onChange={setFromProvince}
+								exclude={toProvince}
+								placeholder="Escolhe a província de partida"
+							/>
+							<ProvinceFilter
+								label="Para onde"
+								value={toProvince}
+								onChange={setToProvince}
+								exclude={fromProvince}
+								placeholder="Escolhe a província de destino"
+							/>
+						</div>
+					)}
 
 					<div className="mt-4 flex flex-wrap items-center gap-4">
 						<Button type="submit" size="lg" disabled={!ready}>
 							<Search size={18} aria-hidden="true" />
-							{municipal && provinceId
+							{municipal
 								? 'Encontrar boleia na província'
 								: 'Encontrar boleia'}
 						</Button>
 
 						{/*
-						 * Em modo municipal sem província escolhida, origem e
-						 * destino podem vir de duas províncias diferentes e a
-						 * busca não seria intermunicipal. O aviso diz isso em vez
-						 * de deixar a pessoa descobrir depois.
+						 * O aviso diz o que falta **neste modo**. Um
+						 * "escolhe a origem e o destino" genérico, no
+						 * interprovincial, não nomeia os campos que estão à
+						 * vista — e no intermunicipal esconde que ainda falta
+						 * a província.
 						 */}
 						{!ready ? (
 							<p className="text-small text-muted">
-								{municipal && !provinceId
-									? 'Escolhe a província, a origem e o destino.'
-									: 'Escolhe a origem e o destino para procurar.'}
+								{municipal
+									? !provinceId
+										? 'Escolhe a província, a origem e o destino.'
+										: 'Escolhe a origem e o destino dentro da província.'
+									: 'Escolhe a província de partida e a de destino.'}
 							</p>
 						) : null}
 					</div>

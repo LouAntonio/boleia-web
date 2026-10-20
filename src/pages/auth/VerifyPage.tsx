@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { maskOtp } from '../../lib/phone';
 import { apiErrorMessage } from '../../lib/axios';
 import { sendOtp, verifyOtp, type OtpPurpose } from '../../lib/phone-auth';
+import { carryRouteIntent } from '../../lib/route-intent';
 
 /**
  * A confirmação do código.
@@ -60,25 +61,17 @@ export function VerifyPage() {
 
 	const isReset = purpose === 'reset';
 
-	/** A rota escolhida na landing, se a pessoa veio de lá. */
-	function pickRouteFrom(source: URLSearchParams): {
-		from?: string;
-		to?: string;
-	} {
-		const de = source.get('de');
-		const para = source.get('para');
-		return {
-			...(de ? { from: de } : {}),
-			...(para ? { to: para } : {}),
-		};
-	}
-
-	/** Para onde o `SignIn` deve mandar depois de autenticar. */
+	/**
+	 * Para onde o `SignIn` deve mandar depois de autenticar.
+	 *
+	 * Transporta o intento de rota **inteiro** — modo, província e os dois
+	 * vocabulários de origem/destino. Antes só `de`/`para` atravessavam, o que
+	 * fazia uma pesquisa interprovincial chegar ao Explorar sem modo e sem
+	 * províncias: o filtro desaparecia exactamente no último salto.
+	 */
 	function nextPathWithRoute(): string | undefined {
-		const route = pickRouteFrom(params);
 		const query = new URLSearchParams();
-		if (route.from) query.set('de', route.from);
-		if (route.to) query.set('para', route.to);
+		carryRouteIntent(params, query);
 		return query.toString() ? `/app/explorar?${query}` : undefined;
 	}
 
@@ -112,19 +105,18 @@ export function VerifyPage() {
 
 			toast.success('Conta confirmada. Já podes entrar.');
 			/*
-			 * A rota escolhida na landing viaja para o `SignIn` no `state`,
-			 * não na query string. Ela não é um segredo — é um `localityId` —
-			 * mas também não precisa de ficar no histórico do browser, e o
-			 * `state` é o sítio que o `SignIn` já usa para saber de onde veio
-			 * a pessoa. Sem isto, `?de=`/`?para=` morriam aqui e o filtro
-			 * escolhido na primeira página nunca chegava ao Explorar.
+			 * O intento de rota vai no `state` para o `SignIn`, já resolvido
+			 * por `nextPathWithRoute()` — que é o que o `SignIn` lê como
+			 * `state.from` e para onde redirecciona depois de autenticar.
+			 *
+			 * Não vai na query string porque não é um segredo, mas também não
+			 * precisa de ficar no histórico do browser. Sem isto, a pesquisa
+			 * escolhida na primeira página morria aqui e o Explorar abria sem
+			 * filtro nenhum.
 			 */
 			navigate('/entrar', {
 				replace: true,
-				state: {
-					...pickRouteFrom(params),
-					from: nextPathWithRoute(),
-				},
+				state: { from: nextPathWithRoute() },
 			});
 		} catch (err) {
 			setError(

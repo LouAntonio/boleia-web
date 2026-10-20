@@ -165,8 +165,20 @@ export async function listLocalities(provinceId: string): Promise<Locality[]> {
 /* ---------- Corridas ---------- */
 
 export interface ListRidesQuery {
+	/** Id da localidade de origem. Modo "intermunicipal". */
 	origin?: string;
+	/** Id da localidade de destino. Modo "intermunicipal". */
 	destination?: string;
+	/**
+	 * Id da província de origem. Modo "interprovincial".
+	 *
+	 * O backend trata município e província como predicados **independentes**:
+	 * mandar os dois obriga a que a paragem esteja naquela província **e** seja
+	 * aquele município. Cada modo manda só o seu.
+	 */
+	originProvinceId?: string;
+	/** Id da província de destino. Modo "interprovincial". */
+	destinationProvinceId?: string;
 	/** Dia inteiro, em `AAAA-MM-DD`. */
 	date?: string;
 	dateFrom?: string;
