@@ -21,6 +21,7 @@ import {
 	fmtKz,
 	fmtLongDate,
 	hhmm,
+	rideScopeLabel,
 	seatsLeft,
 } from '../../lib/format';
 import type { Booking } from '../../types/api';
@@ -113,6 +114,9 @@ export function DriverRideDetailPage() {
 							<Clock size={16} aria-hidden="true" />
 							{fmtLongDate(ride.departureAt)},{' '}
 							{hhmm(ride.departureAt)} → {hhmm(ride.arrivalAt)}
+						</span>
+						<span className="rounded-full bg-canvas px-2.5 py-0.5 text-small font-medium text-ink">
+							{rideScopeLabel(ride.scope)}
 						</span>
 						<span className="rounded-full bg-canvas px-2.5 py-0.5 text-small font-medium text-ink">
 							{durationBetween(ride.departureAt, ride.arrivalAt)}

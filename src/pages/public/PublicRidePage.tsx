@@ -23,9 +23,9 @@ import {
 	fmtKz,
 	fmtLongDate,
 	hhmm,
+	rideScopeLabel,
 	seatsLeft,
 } from '../../lib/format';
-import type { PublicRideStop } from '../../types/api';
 
 /**
  * A página de uma boleia partilhada.
@@ -68,12 +68,12 @@ export function PublicRidePage() {
 	}
 
 	const stops = ride.stops.filter((stop) => Boolean(stop.name));
-	const origin = stops.find((stop) => stop.kind === 'ORIGIN');
-	const destination = stops.find((stop) => stop.kind === 'DESTINATION');
 	const free = seatsLeft(ride.seatsTotal, ride.seatsTaken);
 	const sold = free === 0;
 	const bookable = ride.status === 'SCHEDULED' && !sold;
-	const mode = modeOf(origin, destination);
+	// O modo vem gravado na corrida. As províncias das paragens continuam a
+	// ser mostradas, mas já não são a fonte da etiqueta.
+	const mode = rideScopeLabel(ride.scope);
 	const enterTo = `/app/viagens/${ride.id}`;
 	const publicPath = `/viagens/${ride.id}`;
 	const shareTitle = `${ride.routeName} · Boleia`;
@@ -302,19 +302,4 @@ export function PublicRidePage() {
 			</div>
 		</div>
 	);
-}
-
-/**
- * Intermunicipal ou interprovincial, a partir das províncias reais das duas
- * pontas. Não se deduz do nome: há municípios com o mesmo nome em províncias
- * diferentes.
- */
-function modeOf(
-	origin: PublicRideStop | undefined,
-	destination: PublicRideStop | undefined,
-): string | null {
-	const from = origin?.locality?.provinceId ?? null;
-	const to = destination?.locality?.provinceId ?? null;
-	if (!from || !to) return null;
-	return from === to ? 'Intermunicipal' : 'Interprovincial';
 }

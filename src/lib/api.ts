@@ -24,6 +24,7 @@ import type {
 	PublicRide,
 	PublicRideDetail,
 	Ride,
+	RideScope,
 	RideStatus,
 	SessionUser,
 	UploadSignature,
@@ -241,6 +242,8 @@ export interface CreateRideInput {
 	originLocalityId: string;
 	/** Código do município de destino (`luanda.viana`). */
 	destinationLocalityId: string;
+	/** Modo declarado pelo motorista. */
+	scope: RideScope;
 	departureAt: string;
 	arrivalAt: string;
 	pricePerSeat: number;

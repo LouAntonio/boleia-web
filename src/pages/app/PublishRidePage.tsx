@@ -225,6 +225,10 @@ export function PublishRidePage() {
 	}
 
 	async function publish() {
+		if (!mode) {
+			toast.error('Escolhe se a viagem é intermunicipal ou interprovincial.');
+			return;
+		}
 		if (!fromLocality || !toLocality || !departureDate || !arrivalDate) {
 			toast.error('Falta a rota ou o horário da viagem.');
 			return;
@@ -236,6 +240,10 @@ export function PublishRidePage() {
 				vehicleId,
 				originLocalityId: fromLocality,
 				destinationLocalityId: toLocality,
+				scope:
+					mode === 'intermunicipal'
+						? 'INTERMUNICIPAL'
+						: 'INTERPROVINCIAL',
 				departureAt: departureDate.toISOString(),
 				arrivalAt: arrivalDate.toISOString(),
 				pricePerSeat: priceValue,

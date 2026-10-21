@@ -5,6 +5,12 @@
  * inevitável. Se alguma vez precisarem de saber o sítio de onde vêm, é sinal de
  * que o que estão a fazer não era um formatador.
  */
+import type { RideScope } from '../types/api';
+
+/** `INTERMUNICIPAL` -> "Intermunicipal". */
+export function rideScopeLabel(scope: RideScope): string {
+	return scope === 'INTERMUNICIPAL' ? 'Intermunicipal' : 'Interprovincial';
+}
 
 /** "Lourenço António" -> "LA". Usado no avatar. */
 export function initials(name: string, surname?: string | null): string {

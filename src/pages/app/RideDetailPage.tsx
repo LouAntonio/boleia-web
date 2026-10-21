@@ -13,7 +13,13 @@ import { RoadTrack } from '../../components/marketing/RoadTrack';
 import { usePageTitle } from '../../hooks/usePageMeta';
 import { useKycMe } from '../../hooks/useKyc';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { hhmm, fmtLongDate, durationBetween, seatsLeft } from '../../lib/format';
+import {
+	durationBetween,
+	fmtLongDate,
+	hhmm,
+	rideScopeLabel,
+	seatsLeft,
+} from '../../lib/format';
 import { SUPPORTED_PAYMENT_METHODS } from '../../types/api';
 
 export function RideDetailPage() {
@@ -85,6 +91,9 @@ export function RideDetailPage() {
 							<Clock size={16} aria-hidden="true" />
 							{fmtLongDate(ride.departureAt)},{' '}
 							{hhmm(ride.departureAt)}
+						</span>
+						<span className="rounded-full bg-canvas px-2.5 py-0.5 text-small font-medium text-ink">
+							{rideScopeLabel(ride.scope)}
 						</span>
 						<span className="rounded-full bg-canvas px-2.5 py-0.5 text-small font-medium text-ink">
 							{durationBetween(ride.departureAt, ride.arrivalAt)}

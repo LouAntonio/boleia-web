@@ -83,6 +83,12 @@ export interface Vehicle {
 
 export type RideStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
+/**
+ * Distância administrativa declarada pelo motorista e gravada na corrida.
+ * Não se deriva das paragens no cliente: a base de dados é a fonte de verdade.
+ */
+export type RideScope = 'INTERMUNICIPAL' | 'INTERPROVINCIAL';
+
 /** Papel de uma paragem no percurso. */
 export type RideStopKind = 'ORIGIN' | 'INTERMEDIATE' | 'DESTINATION';
 
@@ -106,6 +112,7 @@ export interface Ride {
 	driverId: string;
 	vehicleId: string | null;
 	routeName: string;
+	scope: RideScope;
 	departureAt: string;
 	arrivalAt: string;
 	seatsTotal: number;
@@ -136,6 +143,7 @@ export interface Ride {
 export interface PublicRide {
 	id: string;
 	routeName: string;
+	scope: RideScope;
 	departureAt: string;
 	arrivalAt: string;
 	seatsTotal: number;
@@ -168,6 +176,7 @@ export interface PublicRideStop extends RideStop {
 export interface PublicRideDetail {
 	id: string;
 	routeName: string;
+	scope: RideScope;
 	departureAt: string;
 	arrivalAt: string;
 	seatsTotal: number;
@@ -222,6 +231,7 @@ export interface Booking {
 	ride?: {
 		id: string;
 		routeName: string;
+		scope: RideScope;
 		departureAt: string;
 		arrivalAt: string;
 		status: RideStatus;
