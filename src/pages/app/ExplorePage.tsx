@@ -10,9 +10,10 @@ import { SkeletonCards } from '../../components/ui/Skeleton';
 import { RideCard } from '../../components/rides/RideCard';
 import { LocalityFilter } from '../../components/rides/LocalityFilter';
 import { ProvinceFilter } from '../../components/rides/ProvinceFilter';
+import { DateRangeFilter } from '../../components/rides/DateRangeFilter';
 import { usePageTitle } from '../../hooks/usePageMeta';
 import { PROVINCES } from '../../lib/locations';
-import { seatsLeft, toDateInput } from '../../lib/format';
+import { seatsLeft } from '../../lib/format';
 import type { ListRidesQuery } from '../../lib/api';
 
 const MODES = [
@@ -26,18 +27,27 @@ const SORTS = [
 	{ value: 'seats', label: 'Mais lugares' },
 ];
 
-const DATE_OPTIONS = [
-	{ value: '', label: 'Qualquer dia' },
-	{ value: '0', label: 'Hoje' },
-	{ value: '1', label: 'Amanhã' },
-	{ value: '7', label: 'Próximos 7 dias' },
-	{ value: '30', label: 'Próximos 30 dias' },
-];
-
-const PROVINCE_OPTIONS = PROVINCES.map((province) => ({
-	value: province.code,
-	label: province.name,
-}));
+/**
+ * A província de um município, a partir do código (`luanda.cacuaco`).
+ *
+ * Serve para preencher o filtro de província quando a pessoa escolhe só
+ * "De onde" ou "Para onde". Sem isto, o filtro dizia "Todas" enquanto a
+ * pesquisa já estava limitada a um município — e o outro extremo podia ser
+ * escolhido numa província diferente, o que não é uma viagem intermunicipal.
+ */
+function provinceOf(municipalityCode: string): string {
+	if (!municipalityCode) return '';
+	for (const province of PROVINCES) {
+		if (
+			province.municipalities.some(
+				(municipality) => municipality.code === municipalityCode,
+			)
+		) {
+			return province.code;
+		}
+	}
+	return '';
+}
 
 /**
  * Os campos que compõem uma pesquisa.
@@ -61,7 +71,9 @@ interface Filters {
 	/** Províncias de origem e destino, no modo interprovincial. */
 	fromProvince: string;
 	toProvince: string;
-	when: string;
+	/** Intervalo inclusivo, em `AAAA-MM-DD`. */
+	dateFrom: string;
+	dateTo: string;
 }
 
 const EMPTY_FILTERS: Filters = {
@@ -71,7 +83,8 @@ const EMPTY_FILTERS: Filters = {
 	province: '',
 	fromProvince: '',
 	toProvince: '',
-	when: '',
+	dateFrom: '',
+	dateTo: '',
 };
 
 function sameFilters(a: Filters, b: Filters): boolean {
@@ -82,7 +95,8 @@ function sameFilters(a: Filters, b: Filters): boolean {
 		a.province === b.province &&
 		a.fromProvince === b.fromProvince &&
 		a.toProvince === b.toProvince &&
-		a.when === b.when
+		a.dateFrom === b.dateFrom &&
+		a.dateTo === b.dateTo
 	);
 }
 
@@ -111,8 +125,8 @@ function useSearchIntent(apply: (intent: Filters) => void): void {
 
 		const fromProvince = searchParams.get('deProvincia') ?? '';
 		const toProvince = searchParams.get('paraProvincia') ?? '';
-		const origin = searchParams.get('de') ?? '';
-		const destination = searchParams.get('para') ?? '';
+		let origin = searchParams.get('de') ?? '';
+		let destination = searchParams.get('para') ?? '';
 		const declared = searchParams.get('modo');
 
 		const byProvince = Boolean(fromProvince || toProvince);
@@ -123,21 +137,43 @@ function useSearchIntent(apply: (intent: Filters) => void): void {
 		if (!byProvince && !byLocality && !declared) return;
 		done.current = true;
 
-		apply({
-			mode:
-				declared === 'intermunicipal'
-					? 'intermunicipal'
-					: declared === 'interprovincial'
+		const mode: Filters['mode'] =
+			declared === 'intermunicipal'
+				? 'intermunicipal'
+				: declared === 'interprovincial'
+					? 'interprovincial'
+					: byProvince
 						? 'interprovincial'
-						: byProvince
-							? 'interprovincial'
-							: 'intermunicipal',
+						: 'intermunicipal';
+
+		// Links antigos traziam só `de`/`para` e nenhuma `provincia`. O filtro
+		// de província não pode ficar em "Todas" quando já há um município
+		// escolhido: é a província que restringe o outro extremo.
+		let province = searchParams.get('provincia') ?? '';
+		if (mode === 'intermunicipal') {
+			if (!province) {
+				province = provinceOf(origin) || provinceOf(destination);
+			}
+			// Um link antigo podia trazer municípios de províncias diferentes.
+			// O modo é intermunicipal, portanto o extremo que não pertence à
+			// província escolhida é descartado em vez de ficar a contradizê-la.
+			if (province && origin && provinceOf(origin) !== province) {
+				origin = '';
+			}
+			if (province && destination && provinceOf(destination) !== province) {
+				destination = '';
+			}
+		}
+
+		apply({
+			mode,
 			origin,
 			destination,
-			province: searchParams.get('provincia') ?? '',
+			province,
 			fromProvince,
 			toProvince,
-			when: '',
+			dateFrom: '',
+			dateTo: '',
 		});
 	}, [searchParams, apply]);
 }
@@ -172,11 +208,16 @@ export function ExplorePage() {
 
 	useSearchIntent(applyIntent);
 
-	// O backend aceita um intervalo de datas. Um botão de "hoje / amanhã / 7
-	// dias" em vez de um calendário: quem procura boleia quer "quando saem a
-	// seguir", e um `date` obriga a pensar em datas em vez de em dias.
 	const query = useMemo<ListRidesQuery>(() => {
-		const base: ListRidesQuery = { limit: 24 };
+		// O modo vai sempre para a API. Sem ele, os dois separadores devolviam
+		// as mesmas corridas, incluindo as do outro modo.
+		const base: ListRidesQuery = {
+			limit: 24,
+			scope:
+				applied.mode === 'intermunicipal'
+					? 'INTERMUNICIPAL'
+					: 'INTERPROVINCIAL',
+		};
 		if (applied.mode === 'intermunicipal') {
 			if (applied.origin) base.origin = applied.origin;
 			if (applied.destination) base.destination = applied.destination;
@@ -189,18 +230,8 @@ export function ExplorePage() {
 			}
 		}
 
-		if (applied.when === '0') {
-			base.date = toDateInput(new Date().toISOString());
-		} else if (applied.when === '1') {
-			const tomorrow = new Date();
-			tomorrow.setDate(tomorrow.getDate() + 1);
-			base.date = toDateInput(tomorrow.toISOString());
-		} else if (applied.when) {
-			base.dateFrom = toDateInput(new Date().toISOString());
-			const limit = new Date();
-			limit.setDate(limit.getDate() + Number(applied.when));
-			base.dateTo = toDateInput(limit.toISOString());
-		}
+		if (applied.dateFrom) base.dateFrom = applied.dateFrom;
+		if (applied.dateTo) base.dateTo = applied.dateTo;
 
 		return base;
 	}, [applied]);
@@ -254,17 +285,64 @@ export function ExplorePage() {
 	// aplicar.
 	const filtered =
 		applied.mode === 'intermunicipal'
-			? Boolean(applied.origin || applied.destination || applied.when)
-			: Boolean(applied.fromProvince || applied.toProvince || applied.when);
+			? Boolean(
+					applied.origin ||
+					applied.destination ||
+					applied.dateFrom ||
+					applied.dateTo,
+				)
+			: Boolean(
+					applied.fromProvince ||
+					applied.toProvince ||
+					applied.dateFrom ||
+					applied.dateTo,
+				);
 
 	function change<K extends keyof Filters>(key: K, value: Filters[K]) {
 		setDraft((current) => ({ ...current, [key]: value }));
 	}
 
-	/** Trocar de modo limpa as escolhas do modo anterior. */
+	/**
+	 * Escolher um município preenche a província, se ainda não houver uma.
+	 *
+	 * A província é o que mantém os dois extremos dentro do mesmo território;
+	 * deixá-la em "Todas" escondia a restrição e permitia um destino noutra
+	 * província. Se o outro extremo já estava numa província diferente, é
+	 * limpo — a escolha nova é que manda.
+	 */
+	function changePlace(key: 'origin' | 'destination', code: string) {
+		setDraft((current) => {
+			const province = current.province || provinceOf(code);
+			const other = key === 'origin' ? current.destination : current.origin;
+			const otherProvince = provinceOf(other);
+			const clearOther = Boolean(
+				province && other && otherProvince !== province,
+			);
+
+			return {
+				...current,
+				province,
+				origin: key === 'origin' ? code : clearOther ? '' : current.origin,
+				destination:
+					key === 'destination'
+						? code
+						: clearOther
+							? ''
+							: current.destination,
+			};
+		});
+	}
+
+	/**
+	 * Trocar de modo aplica logo o novo modo e limpa as escolhas do anterior.
+	 *
+	 * Antes só o rascunho mudava: a lista continuava a mostrar resultados do
+	 * separador antigo até se carregar em "Pesquisar". O dia escolhido
+	 * mantém-se — é a única coisa que faz sentido nos dois modos.
+	 */
 	function changeMode(next: 'interprovincial' | 'intermunicipal') {
 		if (next === draft.mode) return;
-		setDraft({
+		const replaced: Filters = {
 			...draft,
 			mode: next,
 			origin: '',
@@ -272,7 +350,9 @@ export function ExplorePage() {
 			province: '',
 			fromProvince: '',
 			toProvince: '',
-		});
+		};
+		setDraft(replaced);
+		setApplied(replaced);
 	}
 
 	function changeProvince(next: string) {
@@ -328,18 +408,63 @@ export function ExplorePage() {
 				<div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
 					{municipal ? (
 						<>
-							<Select
-								label="Província"
-								value={draft.province}
-								onChange={changeProvince}
-								options={PROVINCE_OPTIONS}
-								placeholder="Todas"
-								hint="A origem e o destino ficam dentro desta província."
-							/>
+							{/*
+							 * Chips em quebra de linha, como no telemóvel. O
+							 * `select` anterior escondia as 21 províncias
+							 * dentro de um menu e não mostrava a lista de um
+							 * lado para o outro. A província não vai para a
+							 * API: restringe os municípios que se podem
+							 * escolher e é preenchida pelo primeiro deles.
+							 */}
+							<div className="flex flex-col gap-2 sm:col-span-2 lg:col-span-4">
+								<span className="text-label text-ink">
+									Província
+								</span>
+								<div className="flex flex-wrap gap-2">
+									<button
+										type="button"
+										onClick={() => changeProvince('')}
+										aria-pressed={draft.province === ''}
+										className={[
+											'rounded-full border px-3 py-1.5 text-small transition-colors',
+											draft.province === ''
+												? 'border-ink bg-ink text-surface'
+												: 'border-line text-muted hover:border-ink',
+										].join(' ')}
+									>
+										Todas
+									</button>
+									{PROVINCES.map((province) => {
+										const active =
+											draft.province === province.code;
+										return (
+											<button
+												key={province.code}
+												type="button"
+												onClick={() =>
+													changeProvince(
+														active ? '' : province.code,
+													)
+												}
+												aria-pressed={active}
+												className={[
+													'rounded-full border px-3 py-1.5 text-small transition-colors',
+													active
+														? 'border-ink bg-ink text-surface'
+														: 'border-line text-muted hover:border-ink',
+												].join(' ')}
+											>
+												{province.name}
+											</button>
+										);
+									})}
+								</div>
+							</div>
+
 							<LocalityFilter
 								label="De onde"
 								value={draft.origin}
-								onChange={(code) => change('origin', code)}
+								onChange={(code) => changePlace('origin', code)}
 								exclude={draft.destination}
 								placeholder="Todos"
 								restrictToProvince={draft.province || null}
@@ -347,7 +472,9 @@ export function ExplorePage() {
 							<LocalityFilter
 								label="Para onde"
 								value={draft.destination}
-								onChange={(code) => change('destination', code)}
+								onChange={(code) =>
+									changePlace('destination', code)
+								}
 								exclude={draft.origin}
 								placeholder="Todos"
 								restrictToProvince={draft.province || null}
@@ -372,11 +499,16 @@ export function ExplorePage() {
 						</>
 					)}
 
-					<Select
-						label="Quando"
-						value={draft.when}
-						onChange={(value) => change('when', value)}
-						options={DATE_OPTIONS}
+					<DateRangeFilter
+						valueFrom={draft.dateFrom}
+						valueTo={draft.dateTo}
+						onChange={(from, to) =>
+							setDraft((current) => ({
+								...current,
+								dateFrom: from,
+								dateTo: to,
+							}))
+						}
 					/>
 					<Select
 						label="Ordenar por"
@@ -429,7 +561,7 @@ export function ExplorePage() {
 					title="Nenhuma boleia com estes filtros"
 					description={
 						filtered
-							? 'Experimenta alargar o dia ou tirar uma das províncias. Se não houver, a rota ainda não foi publicada.'
+							? 'Experimenta alargar o intervalo ou tirar uma das províncias. Se não houver, a rota ainda não foi publicada.'
 							: 'Ainda não há boleias agendadas. Volta mais tarde — é a mesma coisa que está a acontecer no telemóvel.'
 					}
 					action={

@@ -166,6 +166,11 @@ export interface ListRidesQuery {
 	originProvinceId?: string;
 	/** Código da província de destino. Modo "interprovincial". */
 	destinationProvinceId?: string;
+	/**
+	 * Restringe ao modo escolhido no separador. Sem isto, a mesma pesquisa
+	 * devolvia corridas intermunicipais e interprovinciais ao mesmo tempo.
+	 */
+	scope?: RideScope;
 	/** Dia inteiro, em `AAAA-MM-DD`. */
 	date?: string;
 	dateFrom?: string;

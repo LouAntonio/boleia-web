@@ -161,7 +161,7 @@ export function PublishRidePage() {
 		mode && originName && destName
 			? mode === 'intermunicipal'
 				? `Intermunicipal · ${originProvinceName}: ${originName} → ${destName}`
-				: `Interprovincial · ${originProvinceName} (${originName}) → ${destinationProvinceName} (${destName})`
+				: `Interprovincial · ${originProvinceName} → ${destinationProvinceName}`
 			: null;
 
 	function changeMode(next: TripMode) {
