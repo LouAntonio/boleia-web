@@ -50,6 +50,12 @@ export interface OtpVerified {
 
 export interface StatusResponse {
 	status: boolean;
+	/**
+	 * Cópia temporária do OTP, só quando o backend tem
+	 * `OTP_PREVIEW_IN_RESPONSE` ligado. Em produção com WAME a funcionar este
+	 * campo não vem e a UI mantém a mensagem genérica.
+	 */
+	otp?: string;
 }
 
 export interface SignInResponse {

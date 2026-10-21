@@ -113,6 +113,12 @@ function useSessionExpiryNotice(): void {
  */
 function SocialCallbackPage() {
 	const navigate = useNavigate();
+	/*
+	 * `getSession()` confirma a sessão ao servidor, mas não escreve no atom
+	 * que o `useSession()` usa. Sem este refetch, a guarda de `/app` ainda vê
+	 * o `null` anterior e manda a pessoa de volta para `/entrar`.
+	 */
+	const { refetch: refetchSession } = authClient.useSession();
 
 	useEffect(() => {
 		let cancelled = false;
@@ -131,6 +137,8 @@ function SocialCallbackPage() {
 					return;
 				}
 
+				await refetchSession();
+				if (cancelled) return;
 				navigate('/app/explorar', { replace: true });
 			} catch {
 				if (cancelled) return;
@@ -142,7 +150,7 @@ function SocialCallbackPage() {
 		return () => {
 			cancelled = true;
 		};
-	}, [navigate]);
+	}, [navigate, refetchSession]);
 
 	return (
 		<div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6">

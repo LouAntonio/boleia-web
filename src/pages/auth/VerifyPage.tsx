@@ -7,6 +7,7 @@ import { Field } from '../../components/ui/Field';
 import { Button } from '../../components/ui/Button';
 import { maskOtp } from '../../lib/phone';
 import { apiErrorMessage } from '../../lib/axios';
+import { showOtpToast } from '../../lib/otp-toast';
 import { sendOtp, verifyOtp, type OtpPurpose } from '../../lib/phone-auth';
 import { carryRouteIntent } from '../../lib/route-intent';
 
@@ -133,8 +134,8 @@ export function VerifyPage() {
 	async function handleResend() {
 		setResending(true);
 		try {
-			await sendOtp(phone, purpose);
-			toast.success('Enviámos outro código.');
+			const result = await sendOtp(phone, purpose);
+			showOtpToast(result.otp, 'Enviámos outro código.');
 		} catch (err) {
 			toast.error(
 				apiErrorMessage(err, 'Não foi possível reenviar o código.'),

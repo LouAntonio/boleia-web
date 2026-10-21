@@ -21,13 +21,21 @@ export function useSignIn(redirectTo?: string) {
 	const clearAuth = useAuthStore((s) => s.clearAuth);
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	/*
+	 * O login por telefone chama `/phone/sign-in` com `$fetch`, e esse
+	 * endpoint não está na lista de rotas que o better-auth observa. Sem este
+	 * `refetch`, o atom do `useSession()` continua com o `null` de antes do
+	 * login e a guarda manda a pessoa de volta para `/entrar` apesar de a
+	 * sessão já existir no cookie.
+	 */
+	const { refetch: refetchSession } = authClient.useSession();
 
 	return useMutation({
 		mutationFn: async (input: PhoneCredentials) => {
 			const response = await signInPhone(input);
 			return sessionUserFrom(response.user);
 		},
-		onSuccess: () => {
+		onSuccess: async () => {
 			/*
 			 * A sessão fica em cookie, e quem a guarda é o `authClient`. O store
 			 * é esvaziado aqui para que o `AuthSync` escreva o utilizador novo em
@@ -36,6 +44,9 @@ export function useSignIn(redirectTo?: string) {
 			 */
 			clearAuth();
 			queryClient.clear();
+			// Só depois de o servidor confirmar a sessão é que a navegação
+			// pode acontecer. É esta espera que evita o refresh manual.
+			await refetchSession();
 			toast.success('Entraste na tua conta');
 			/*
 			 * `redirectTo` é o sítio de onde a pessoa saiu — a `RequireAuth`

@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
 import { AuthShell } from '../../components/layout/AuthShell';
 import { Field } from '../../components/ui/Field';
 import { Button } from '../../components/ui/Button';
 import { maskPhone, phoneError, phonePlaceholder } from '../../lib/phone';
 import { apiErrorMessage } from '../../lib/axios';
+import { showOtpToast } from '../../lib/otp-toast';
 import { forgotPassword } from '../../lib/phone-auth';
 
 export function ForgotPasswordPage() {
@@ -26,7 +26,7 @@ export function ForgotPasswordPage() {
 
 		setBusy(true);
 		try {
-			await forgotPassword(phone.trim());
+			const result = await forgotPassword(phone.trim());
 
 			/*
 			 * O backend responde com a mesma coisa exista ou não a conta, para não
@@ -37,7 +37,10 @@ export function ForgotPasswordPage() {
 			 * senha e não para confirmar um registo novo — são o mesmo formulário
 			 * e duas continuações diferentes.
 			 */
-			toast.success('Se esse número tiver conta, o código já vai a caminho.');
+			showOtpToast(
+				result.otp,
+				'Se esse número tiver conta, o código já vai a caminho.',
+			);
 			navigate(
 				`/verificar?purpose=reset&phone=${encodeURIComponent(phone.trim())}`,
 				{ replace: true },

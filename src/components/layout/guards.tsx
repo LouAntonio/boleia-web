@@ -61,10 +61,25 @@ export function RequireAuth({ children }: { children: ReactNode }) {
  */
 export function RedirectIfAuthed({ children }: { children: ReactNode }) {
 	const { data: session, isPending } = authClient.useSession();
+	const location = useLocation();
 
 	if (isPending) return <ShellSkeleton />;
 
-	if (session) return <Navigate to="/app/explorar" replace />;
+	if (session) {
+		/*
+		 * Quando a sessão chega enquanto ainda estamos em `/entrar`, esta
+		 * guarda pode reagir antes da navegação do `useSignIn`. Se ignorasse o
+		 * `from`, perdia o destino que a pessoa tinha escolhido.
+		 */
+		const from = (location.state as { from?: unknown } | null)?.from;
+		const target =
+			typeof from === 'string' &&
+			from.startsWith('/') &&
+			!from.startsWith('//')
+				? from
+				: '/app/explorar';
+		return <Navigate to={target} replace />;
+	}
 
 	return <>{children}</>;
 }

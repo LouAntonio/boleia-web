@@ -15,6 +15,7 @@ import {
 	phonePlaceholder,
 } from '../../lib/phone';
 import { apiErrorMessage } from '../../lib/axios';
+import { showOtpToast } from '../../lib/otp-toast';
 import { carryRouteIntent } from '../../lib/route-intent';
 
 export function SignUpPage() {
@@ -65,7 +66,7 @@ export function SignUpPage() {
 
 		setBusy(true);
 		try {
-			await signUpPhone({
+			const result = await signUpPhone({
 				phone: phone.trim(),
 				password,
 				name: name.trim(),
@@ -83,7 +84,7 @@ export function SignUpPage() {
 			const next = new URLSearchParams({ phone: phone.trim() });
 			carryRouteIntent(params, next);
 
-			toast.success('Enviámos um código para o teu telemóvel.');
+			showOtpToast(result.otp, 'Enviámos um código para o teu telemóvel.');
 			navigate(`/verificar?${next}`, { replace: true });
 		} catch (error) {
 			toast.error(
