@@ -1,13 +1,18 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as api from '../../lib/api';
 import { qk } from '../../lib/queryClient';
 import { apiErrorMessage } from '../../lib/axios';
 import { usePageTitle } from '../../hooks/usePageMeta';
-import { PROVINCES, municipalitiesOf } from '../../lib/locations';
+import {
+	MUNICIPALITY_BY_CODE,
+	PROVINCES,
+	municipalitiesOf,
+} from '../../lib/locations';
+import { LocalityFilter } from '../../components/rides/LocalityFilter';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { SegmentedControl } from '../../components/ui/SegmentedControl';
@@ -35,6 +40,22 @@ const MINUTE_OPTIONS = [
 	{ value: '0', label: '00' },
 	{ value: '30', label: '30' },
 ];
+
+/** O mesmo tecto que `cleanIntermediateStops` aplica no backend. */
+const MAX_STOPS = 4;
+
+type StopDraft = {
+	kind: 'locality' | 'free';
+	localityId: string;
+	name: string;
+	/** Hora local no formato `HH:MM`; vazia deixa o backend estimar. */
+	time: string;
+};
+
+function stopName(stop: StopDraft): string {
+	if (stop.kind === 'free') return stop.name.trim();
+	return MUNICIPALITY_BY_CODE.get(stop.localityId)?.name ?? '';
+}
 
 /*
  * Publicar uma boleia em três passos.
@@ -78,6 +99,9 @@ export function PublishRidePage() {
 	const [departTime, setDepartTime] = useState('06:00');
 	const [durationHours, setDurationHours] = useState('6');
 	const [durationMinutes, setDurationMinutes] = useState('0');
+
+	// Paragens intermédias: município ou ponto livre, com hora opcional.
+	const [stops, setStops] = useState<StopDraft[]>([]);
 
 	// Preço e viatura
 	const [seatsTotal, setSeatsTotal] = useState('8');
@@ -164,6 +188,25 @@ export function PublishRidePage() {
 				: `Interprovincial · ${originProvinceName} → ${destinationProvinceName}`
 			: null;
 
+	/**
+	 * Paragens no contrato da API. A hora vai com a data da viagem porque o
+	 * backend a lê como hora local de Angola (`AAAA-MM-DDTHH:MM`); sem hora,
+	 * continua a estimar entre a partida e a chegada.
+	 */
+	const stopsForApi = stops.flatMap((stop) => {
+		const localityId = stop.kind === 'locality' ? stop.localityId : undefined;
+		const name = stop.kind === 'free' ? stop.name.trim() : '';
+		if (!localityId && !name) return [];
+
+		return [
+			{
+				localityId,
+				name: localityId ? undefined : name,
+				time: stop.time && date ? `${date}T${stop.time}` : undefined,
+			},
+		];
+	});
+
 	function changeMode(next: TripMode) {
 		if (next === mode) return;
 		setMode(next);
@@ -176,6 +219,40 @@ export function PublishRidePage() {
 		setProvincialOrigin('');
 		setProvincialDestinationProvince('');
 		setProvincialDestination('');
+	}
+
+	function addStop() {
+		if (stops.length >= MAX_STOPS) return;
+		setStops((current) => [
+			...current,
+			{ kind: 'locality', localityId: '', name: '', time: '' },
+		]);
+	}
+
+	function updateStop(index: number, patch: Partial<StopDraft>) {
+		setStops((current) =>
+			current.map((stop, position) =>
+				position === index ? { ...stop, ...patch } : stop,
+			),
+		);
+	}
+
+	function changeStopKind(index: number, kind: StopDraft['kind']) {
+		setStops((current) =>
+			current.map((stop, position) => {
+				if (position !== index) return stop;
+				return {
+					...stop,
+					kind,
+					localityId: kind === 'locality' ? stop.localityId : '',
+					name: kind === 'free' ? stop.name : '',
+				};
+			}),
+		);
+	}
+
+	function removeStop(index: number) {
+		setStops((current) => current.filter((_, position) => position !== index));
 	}
 
 	function canLeaveStep0(): boolean {
@@ -203,6 +280,12 @@ export function PublishRidePage() {
 		}
 		if (!durationValid) {
 			toast.error('A duração tem de ficar entre 30 minutos e 24 horas.');
+			return false;
+		}
+		if (stops.some((stop) => !stopName(stop))) {
+			toast.error(
+				'Cada paragem precisa de um município ou de um ponto preenchido.',
+			);
 			return false;
 		}
 		return true;
@@ -248,6 +331,7 @@ export function PublishRidePage() {
 				arrivalAt: arrivalDate.toISOString(),
 				pricePerSeat: priceValue,
 				seatsTotal: Number(seatsTotal),
+				stops: stopsForApi,
 			});
 
 			queryClient.invalidateQueries({ queryKey: qk.myRides });
@@ -472,6 +556,143 @@ export function PublishRidePage() {
 							: 'Define uma duração entre 30 minutos e 24 horas.'}
 					</p>
 
+					<div className="flex flex-col gap-4 border-t border-line pt-6">
+						<div>
+							<h2 className="text-h3 text-ink">
+								Paragens intermédias
+							</h2>
+							<p className="mt-1 text-small text-muted">
+								Municípios ou pontos no caminho — opcional. Podes
+								indicar a hora de cada um; se deixares em branco,
+								calculamos entre a partida e a chegada.
+							</p>
+						</div>
+
+						{stops.length === 0 ? (
+							<p className="rounded-md border border-dashed border-line px-4 py-5 text-center text-small text-muted">
+								Viagem direta, sem paragens.
+							</p>
+						) : (
+							<div className="flex flex-col gap-3">
+								{stops.map((stop, index) => (
+									<div
+										key={index}
+										className="rounded-md border border-line bg-canvas p-4"
+									>
+										<div className="flex items-center justify-between gap-3">
+											<p className="text-label text-ink">
+												Paragem {index + 1}
+											</p>
+											<button
+												type="button"
+												onClick={() => removeStop(index)}
+												aria-label={`Remover paragem ${index + 1}`}
+												className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface hover:text-alert"
+											>
+												<Trash2
+													size={16}
+													aria-hidden="true"
+												/>
+											</button>
+										</div>
+
+										<div className="mt-3 inline-flex rounded-full border border-line bg-surface p-1">
+											{(
+												[
+													{
+														kind: 'locality',
+														label: 'Município',
+													},
+													{
+														kind: 'free',
+														label: 'Ponto',
+													},
+												] as const
+											).map((option) => {
+												const active =
+													stop.kind === option.kind;
+												return (
+													<button
+														key={option.kind}
+														type="button"
+														onClick={() =>
+															changeStopKind(
+																index,
+																option.kind,
+															)
+														}
+														aria-pressed={active}
+														className={[
+															'rounded-full px-3 py-1 text-small transition-colors',
+															active
+																? 'bg-ink text-surface'
+																: 'text-muted hover:text-ink',
+														].join(' ')}
+													>
+														{option.label}
+													</button>
+												);
+											})}
+										</div>
+
+										<div className="mt-3 grid gap-4 sm:grid-cols-2">
+											{stop.kind === 'locality' ? (
+												<LocalityFilter
+													label="Município"
+													value={stop.localityId}
+													onChange={(code) =>
+														updateStop(index, {
+															localityId: code,
+														})
+													}
+													placeholder="Escolhe"
+												/>
+											) : (
+												<Field
+													label="Ponto"
+													value={stop.name}
+													onChange={(event) =>
+														updateStop(index, {
+															name: event.target
+																.value,
+														})
+													}
+													placeholder="Ex.: Rotunda do Camuxito"
+												/>
+											)}
+											<Field
+												label="Hora da paragem (opcional)"
+												type="time"
+												value={stop.time}
+												onChange={(event) =>
+													updateStop(index, {
+														time: event.target.value,
+													})
+												}
+											/>
+										</div>
+									</div>
+								))}
+							</div>
+						)}
+
+						<div className="flex flex-wrap items-center gap-3">
+							<Button
+								variant="secondary"
+								onClick={addStop}
+								disabled={stops.length >= MAX_STOPS}
+							>
+								<Plus size={16} aria-hidden="true" />
+								Adicionar paragem
+							</Button>
+							{stops.length >= MAX_STOPS ? (
+								<p className="text-small text-muted">
+									Máximo de {MAX_STOPS} paragens.
+								</p>
+							) : null}
+						</div>
+					</div>
+
 					<StepFooter
 						onNext={() => canLeaveStep0() && setStep(1)}
 						nextLabel="Preço e viatura"
@@ -597,6 +818,13 @@ export function PublishRidePage() {
 							height={140}
 							stops={[
 								{ name: originName, time: departTime },
+								...stopsForApi.map((stop) => ({
+									name: stop.localityId
+										? (MUNICIPALITY_BY_CODE.get(stop.localityId)
+												?.name ?? 'Paragem')
+										: (stop.name ?? 'Paragem'),
+									time: stop.time ? stop.time.slice(11, 16) : '—',
+								})),
 								{
 									name: destName,
 									time: arrivalDate ? fmtTime(arrivalDate) : '—',
