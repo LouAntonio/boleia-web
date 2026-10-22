@@ -44,6 +44,10 @@ export const qk = {
 	rides: (query: unknown) => ['rides', 'list', query] as const,
 	ride: (id: string) => ['rides', 'detail', id] as const,
 	publicRide: (id: string) => ['public', 'rides', 'detail', id] as const,
+	publicPerson: (id: string) => ['public', 'people', 'detail', id] as const,
+	/** Pesquisa pública da `/boleias`. A chave inclui os filtros aplicados. */
+	publicRideSearch: (query: unknown) =>
+		['public', 'rides', 'search', query] as const,
 	myRides: ['rides', 'mine'] as const,
 	myBookings: ['bookings', 'mine'] as const,
 	rideBookings: (id: string) => ['bookings', 'ride', id] as const,

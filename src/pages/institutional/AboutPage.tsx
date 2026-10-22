@@ -155,8 +155,8 @@ export function AboutPage() {
 			<PageCta
 				title="Duas maneiras de entrar"
 				body="Se precisas de ir, procura a tua boleia. Se tens lugares vazios, publica-os."
-				primary={{ to: '/app/explorar', label: 'Procurar uma boleia' }}
-				secondary={{ to: '/motoristas', label: 'Quero conduzir' }}
+				primary={{ to: '/boleias', label: 'Procurar uma boleia' }}
+				secondary={{ to: '/para-motoristas', label: 'Quero conduzir' }}
 			/>
 		</>
 	);

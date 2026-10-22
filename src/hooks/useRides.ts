@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { qk } from '../lib/queryClient';
 import { apiErrorMessage } from '../lib/axios';
@@ -35,6 +40,49 @@ export function usePublicRide(id: string) {
 		queryFn: () => api.fetchPublicRide(id),
 		staleTime: 30_000,
 		enabled: Boolean(id),
+	});
+}
+
+/**
+ * Perfil público de quem vai numa boleia.
+ *
+ * `enabled: Boolean(id)` evita pedir `/api/people/` com o id vazio a meio do
+ * carregamento da rota: um pedido desses falha de forma estranha, e a página
+ * já tem o seu próprio estado de "não encontrada".
+ */
+export function usePublicPerson(id: string) {
+	return useQuery({
+		queryKey: qk.publicPerson(id),
+		queryFn: () => api.fetchPublicPerson(id),
+		staleTime: 60_000,
+		enabled: Boolean(id),
+	});
+}
+
+/**
+ * Pesquisa pública, paginada para "carregar mais".
+ *
+ * `useInfiniteQuery` e não uma página com estado: quem clica "carregar mais"
+ * duas vezes seguidas não pode perder a primeira página, e uma lista em
+ * `useState` ia refetchar do zero a cada filtro. O `getNextPageParam` decide
+ * pela soma das linhas contra o total do cabeçalho — não há páginas vazias a
+ * meio da lista, porque o backend não devolve página nenhuma sem ids.
+ */
+export function usePublicRideSearch(query: ListRidesQuery, enabled: boolean) {
+	return useInfiniteQuery({
+		queryKey: qk.publicRideSearch(query),
+		queryFn: ({ pageParam }) =>
+			api.searchPublicRides({ ...query, page: pageParam }),
+		initialPageParam: 1,
+		getNextPageParam: (lastPage, allPages) => {
+			const fetched = allPages.reduce(
+				(sum, page) => sum + page.rows.length,
+				0,
+			);
+			return fetched < lastPage.total ? allPages.length + 1 : undefined;
+		},
+		staleTime: 60_000,
+		enabled,
 	});
 }
 

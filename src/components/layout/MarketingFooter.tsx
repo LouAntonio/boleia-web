@@ -23,7 +23,8 @@ const COLUMNS = [
 	{
 		title: 'Se precisas de ir',
 		links: [
-			{ to: '/app/explorar', label: 'Explorar boleias' },
+			{ to: '/boleias', label: 'Explorar boleias' },
+			{ to: '/como-funciona', label: 'Como funciona' },
 			{ to: '/criar-conta', label: 'Criar conta' },
 			{ to: '/entrar', label: 'Entrar' },
 		],
@@ -31,7 +32,8 @@ const COLUMNS = [
 	{
 		title: 'Se vais conduzir',
 		links: [
-			{ to: '/motoristas', label: 'Publicar uma boleia' },
+			{ to: '/para-motoristas', label: 'Publicar uma boleia' },
+			{ to: '/como-funciona', label: 'Como funciona' },
 			{ to: '/app/kyc', label: 'Verificar identidade' },
 			{ to: '/app/viaturas', label: 'Registar viatura' },
 		],

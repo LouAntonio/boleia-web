@@ -123,7 +123,7 @@ export interface Ride {
 	/** Paragem em que a corrida está. Usado no acompanhamento ao vivo. */
 	progressIndex: number;
 	stops?: RideStop[];
-	driver?: { id: string; name: string };
+	driver?: { id: string; name: string; surname?: string | null };
 	vehicle?: {
 		id: string;
 		make: string;
@@ -131,6 +131,20 @@ export interface Ride {
 		color: string;
 		plate: string;
 	} | null;
+	/**
+	 * Só em `GET /api/rides/:id` — "Quem vai". Pessoas confirmadas já, com
+	 * reservas pendentes de lado: REQUESTED não é presença.
+	 */
+	passengers?: RidePassenger[];
+}
+
+/** Pessoas confirmadas numa corrida, como o backend as projecta. */
+export interface RidePassenger {
+	id: string;
+	name: string;
+	surname: string | null;
+	/** Lugares que a mesma reserva ocupa — 1 por pessoa, quase sempre. */
+	seats: number;
 }
 
 /**
@@ -185,10 +199,35 @@ export interface PublicRideDetail {
 	status: RideStatus;
 	progressIndex: number;
 	stops: PublicRideStop[];
-	/** Só o nome. Sem id, telefone ou email — ver `getPublicRide` no backend. */
-	driverName: string | null;
+	/**
+	 * O nome completo e o id, para ligar ao perfil público (`/pessoas/:id`).
+	 * Sem telefone nem email — ver `getPublicRide` no backend.
+	 */
+	driver: {
+		id: string;
+		name: string;
+		surname: string | null;
+	} | null;
 	/** Sem matrícula: o carro reconhece-se pela marca, modelo e cor. */
 	vehicle: { make: string; model: string; color: string } | null;
+	/** Pessoas já confirmadas, as mesmas que a app autenticada mostra. */
+	passengers: RidePassenger[];
+}
+
+/**
+ * `GET /api/people/:id` — perfil público de quem vai numa boleia.
+ *
+ * A projecção vem toda do backend: o cliente não esconde nada por si. Se o
+ * backend um dia largar um campo, este tipo morre no `typecheck` antes de o
+ * ecrã mostrar `undefined`.
+ */
+export interface PublicPerson {
+	id: string;
+	name: string;
+	surname: string | null;
+	bio: string | null;
+	/** `createdAt` do utilizador, para "membro desde …". */
+	joinedAt: string;
 }
 
 /* ---------- Reservas ---------- */

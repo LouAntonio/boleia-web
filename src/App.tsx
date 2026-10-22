@@ -8,6 +8,7 @@ import { useThemeStore, applyTheme } from './stores/useThemeStore';
 import { MarketingLayout } from './components/layout/MarketingLayout';
 import { AppShell } from './components/layout/AppShell';
 import { AuthSync } from './components/layout/AuthSync';
+import { ScrollToTop } from './components/layout/ScrollToTop';
 import { RequireAuth, RedirectIfAuthed } from './components/layout/guards';
 import { PageSuspense } from './components/layout/Lazy';
 import { lazyPage } from './components/layout/lazyPage';
@@ -47,6 +48,18 @@ const TermsPage = lazyPage(
 const PublicRidePage = lazyPage(
 	() => import('./pages/public/PublicRidePage'),
 	'PublicRidePage',
+);
+const ComoFuncionaPage = lazyPage(
+	() => import('./pages/institutional/ComoFuncionaPage'),
+	'ComoFuncionaPage',
+);
+const PublicBoleiasPage = lazyPage(
+	() => import('./pages/public/PublicBoleiasPage'),
+	'PublicBoleiasPage',
+);
+const PublicPersonPage = lazyPage(
+	() => import('./pages/public/PublicPersonPage'),
+	'PublicPersonPage',
 );
 const DriverRideDetailPage = lazyPage(
 	() => import('./pages/app/DriverRideDetailPage'),
@@ -180,6 +193,7 @@ export function App() {
 			 * lado nenhum — a sessão vive no `authClient`, o store é a sombra.
 			 */}
 			<AuthSync />
+			<ScrollToTop />
 			<Routes>
 				{/* Público */}
 				<Route element={<MarketingLayout />}>
@@ -192,15 +206,24 @@ export function App() {
 					 * conteúdo, não o esqueleto.
 					 */}
 					<Route path="/sobre" element={<AboutPage />} />
-					<Route path="/motoristas" element={<DriverPage />} />
+					<Route path="/como-funciona" element={<ComoFuncionaPage />} />
+					<Route path="/para-motoristas" element={<DriverPage />} />
+					<Route
+						path="/motoristas"
+						element={<Navigate to="/para-motoristas" replace />}
+					/>
 					<Route path="/seguranca" element={<SecurityPage />} />
 					<Route path="/perguntas" element={<FaqPage />} />
 					<Route path="/contacto" element={<ContactPage />} />
 					<Route path="/privacidade" element={<PrivacyPage />} />
 					<Route path="/termos" element={<TermsPage />} />
 
+					{/* Pesquisa pública de boleias, sem sessão. */}
+					<Route path="/boleias" element={<PublicBoleiasPage />} />
+
 					{/* Link partilhado: tem de abrir sem sessão. */}
 					<Route path="/viagens/:id" element={<PublicRidePage />} />
+					<Route path="/pessoas/:id" element={<PublicPersonPage />} />
 				</Route>
 
 				{/* Autenticação. Quem já entrou é levado para a app. */}
@@ -262,6 +285,10 @@ export function App() {
 					/>
 					<Route path="/app/perfil" element={<ProfilePage />} />
 					<Route path="/app/conta" element={<AccountPage />} />
+					<Route
+						path="/app/pessoas/:id"
+						element={<PublicPersonPage withinApp />}
+					/>
 				</Route>
 
 				{/*

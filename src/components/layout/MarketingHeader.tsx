@@ -28,13 +28,14 @@ const SECTIONS = [
 /**
  * As páginas. Aqui é que vivem.
  *
- * "Para motoristas" está no header porque é a conversão de quem tem uma
- * viatura. Estar a um clique do logo é a diferença entre essa pessoa criar conta
- * e fechar o separador.
+ * "Como funciona" faz o que "Para motoristas" fazia — é a conversão — mas
+ * para as duas faces: motorista e passageiro. A rota antiga continua a
+ * redireccionar; nenhum link partilhado fica devolva um 404.
  */
 const PAGES = [
 	{ to: '/sobre', label: 'Sobre' },
-	{ to: '/motoristas', label: 'Para motoristas' },
+	{ to: '/como-funciona', label: 'Como funciona' },
+	{ to: '/para-motoristas', label: 'Motoristas' },
 	{ to: '/perguntas', label: 'Perguntas' },
 	{ to: '/contacto', label: 'Contacto' },
 ];

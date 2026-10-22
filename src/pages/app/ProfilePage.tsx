@@ -10,6 +10,7 @@ import { usePageTitle } from '../../hooks/usePageMeta';
 import { useSignOut, useUpdateProfile } from '../../hooks/useAuth';
 import { useThemeStore } from '../../stores/useThemeStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { PhoneChangeCard } from '../../components/app/PhoneChangeCard';
 import { Button } from '../../components/ui/Button';
 import { Field } from '../../components/ui/Field';
 import { Card } from '../../components/ui/Card';
@@ -18,7 +19,7 @@ import { StatusStamp } from '../../components/ui/StatusStamp';
 import { KycBadge } from '../../components/ui/KycBadge';
 import { maskPhone } from '../../lib/phone';
 
-type Tab = 'perfil' | 'seguranca' | 'aparencia';
+type Tab = 'perfil' | 'seguranca' | 'aparencia' | 'conta';
 
 export function ProfilePage() {
 	usePageTitle('Perfil');
@@ -29,6 +30,7 @@ export function ProfilePage() {
 	const TABS: { id: Tab; label: string }[] = [
 		{ id: 'perfil', label: 'Perfil' },
 		{ id: 'seguranca', label: 'Segurança' },
+		{ id: 'conta', label: 'Conta' },
 		{ id: 'aparencia', label: 'Aparência' },
 	];
 
@@ -72,6 +74,7 @@ export function ProfilePage() {
 
 			{tab === 'perfil' ? <ProfileTab /> : null}
 			{tab === 'seguranca' ? <SecurityTab /> : null}
+			{tab === 'conta' ? <AccountTab /> : null}
 			{tab === 'aparencia' ? <AppearanceTab /> : null}
 		</div>
 	);
@@ -143,8 +146,8 @@ function ProfileTab() {
 						{phone || '—'}
 					</p>
 					<p className="text-small text-muted">
-						O teu número de entrada na conta. Não pode ser alterado
-						aqui.
+						O teu número de entrada na conta. Para o trocar, usa o
+						separador "Conta", ao lado.
 					</p>
 				</div>
 
@@ -156,6 +159,54 @@ function ProfileTab() {
 				</div>
 			</form>
 		</Card>
+	);
+}
+
+/**
+ * O separador "Conta", a entrada curta.
+ *
+ * O `/app/conta` continua — é a página completa, com email, Google, sessões e
+ * eliminação. O que este separador faz é trazer para o perfil o que a pessoa
+ * toca sem pensar: o número (com a troca por código) e o atalho para o
+ * resto. Consultar o estado da conta não devia custar uma navegação; fazer
+ * o backup de credenciais sim, é coisa que um ecrã inteiro trata melhor que
+ * um separador.
+ */
+function AccountTab() {
+	const user = useAuthStore((s) => s.user);
+
+	return (
+		<div className="flex max-w-xl flex-col gap-6">
+			<PhoneChangeCard />
+
+			<Card className="p-6">
+				<h2 className="text-h3 text-ink">Como entras</h2>
+				<p className="mt-1.5 text-small text-muted">
+					O que funciona hoje na tua conta — e o que faltou ligar.
+				</p>
+
+				<dl className="mt-5 divide-y divide-line border-y border-line">
+					<Row label="Número de telefone" value={user?.phone ?? '—'} />
+					<Row label="Email" value={user?.email || '—'} />
+					<Row label="Sessões abertas" value="Em Conta e segurança" />
+				</dl>
+
+				<div className="mt-5 flex justify-end">
+					<Link to="/app/conta">
+						<Button variant="secondary">Conta e segurança</Button>
+					</Link>
+				</div>
+			</Card>
+		</div>
+	);
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+	return (
+		<div className="py-3">
+			<dt className="text-small text-muted">{label}</dt>
+			<dd className="mt-0.5 truncate text-body text-ink">{value}</dd>
+		</div>
 	);
 }
 

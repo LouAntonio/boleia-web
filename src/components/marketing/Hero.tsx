@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+﻿import { Link } from 'react-router-dom';
 import { ArrowRight, Search } from 'lucide-react';
 import { useState } from 'react';
 import { RoadTrack } from './RoadTrack';
@@ -318,9 +318,10 @@ export function DriverCallout() {
 				 * fica antes de se registar.
 				 */}
 				<p className="mt-6 text-small text-muted">
-					Queres saber como funciona e quanto se fica com cada lugar?{' '}
+					Queres saber ao pormenor como se publica e quanto se fica com
+					cada lugar?{' '}
 					<Link
-						to="/motoristas"
+						to="/como-funciona"
 						className="rounded-sm text-brand-text underline-offset-4 hover:underline"
 					>
 						Lê a página para motoristas

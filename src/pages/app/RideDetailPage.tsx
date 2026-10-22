@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, BusFront, Clock, MapPin, Share2, User } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -16,7 +16,9 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import {
 	durationBetween,
 	fmtLongDate,
+	fullName,
 	hhmm,
+	initials,
 	rideScopeLabel,
 	seatsLeft,
 } from '../../lib/format';
@@ -185,11 +187,32 @@ export function RideDetailPage() {
 								aria-hidden="true"
 								className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-soft text-brand-text"
 							>
-								<User size={19} />
+								{ride.driver ? (
+									<span className="text-label font-medium">
+										{initials(
+											ride.driver.name,
+											ride.driver.surname,
+										)}
+									</span>
+								) : (
+									<User size={19} />
+								)}
 							</span>
 							<div>
 								<p className="text-body text-ink">
-									{ride.driver?.name ?? 'Motorista'}
+									{ride.driver ? (
+										<Link
+											to={`/app/pessoas/${ride.driver.id}`}
+											className="rounded-sm underline-offset-4 hover:underline"
+										>
+											{fullName(
+												ride.driver.name,
+												ride.driver.surname,
+											)}
+										</Link>
+									) : (
+										'Motorista'
+									)}
 								</p>
 								{/*
 								 * Aqui dizia "Identidade verificada", sem condição
@@ -230,6 +253,41 @@ export function RideDetailPage() {
 						) : null}
 					</Card>
 
+					{ride.passengers && ride.passengers.length > 0 ? (
+						<Card className="p-6">
+							<h2 className="text-h3 text-ink">Quem vai</h2>
+							<p className="mt-2 text-small text-muted">
+								Já confirmados, a quem o motorista disse que vem.
+							</p>
+							<ul className="mt-4 flex flex-col divide-y divide-line">
+								{ride.passengers.map((person) => (
+									<li
+										key={person.id}
+										className="flex items-center gap-3 py-3"
+									>
+										<span
+											aria-hidden="true"
+											className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-canvas text-small font-medium text-muted"
+										>
+											{initials(person.name, person.surname)}
+										</span>
+										<Link
+											to={`/app/pessoas/${person.id}`}
+											className="min-w-0 flex-1 truncate rounded-sm text-body text-ink underline-offset-4 hover:underline"
+										>
+											{fullName(person.name, person.surname)}
+										</Link>
+										{person.seats > 1 ? (
+											<span className="shrink-0 text-small text-muted">
+												{person.seats} lugares
+											</span>
+										) : null}
+									</li>
+								))}
+							</ul>
+						</Card>
+					) : null}
+
 					<Card className="p-6">
 						<h2 className="text-h3 text-ink">Como se paga</h2>
 						<p className="mt-2 text-body text-muted">
@@ -257,6 +315,7 @@ export function RideDetailPage() {
 						sold={sold}
 						ownRide={ownRide}
 						passengerReady={passengerReady}
+						free={free}
 					/>
 				</Card>
 			</div>
@@ -269,14 +328,31 @@ function BookingPanel({
 	sold,
 	ownRide,
 	passengerReady,
+	free,
 }: {
 	rideId: string;
 	sold: boolean;
 	ownRide: boolean;
 	passengerReady: boolean;
+	free: number;
 }) {
 	const [seats, setSeats] = useState(1);
 	const book = useBookRide();
+
+	const options = Array.from(
+		{ length: Math.max(1, Math.min(free, 4)) },
+		(_, index) => index + 1,
+	);
+
+	/*
+	 * Os lugares livres podem cair a meio deste ecrã — alguém confirmou uma
+	 * opção num clique anterior, ou os pedidos novos subiram. Sem este
+	 * ajuste, a seleção podia ficar por um número que já não pertence aos
+	 * botões, e "Pedir este lugar" iria pedir o que não existe.
+	 */
+	useEffect(() => {
+		if (seats > options.length) setSeats(options.length);
+	}, [options.length, seats]);
 
 	if (ownRide) {
 		return (
@@ -322,7 +398,7 @@ function BookingPanel({
 					Quantos lugares
 				</label>
 				<div className="mt-2 flex gap-2">
-					{[1, 2, 3, 4].map((count) => (
+					{options.map((count) => (
 						<button
 							key={count}
 							type="button"

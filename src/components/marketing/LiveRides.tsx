@@ -52,7 +52,7 @@ export function LiveRides() {
 						</p>
 					</div>
 
-					<Link to="/app/explorar">
+					<Link to="/boleias">
 						<Button variant="secondary">
 							Ver todas
 							<ArrowRight size={16} aria-hidden="true" />
@@ -104,17 +104,34 @@ function PublicRideCard({ ride }: { ride: PublicRide }) {
 				className="mt-2"
 			/>
 
-			<footer className="mt-5 flex items-baseline justify-between gap-3 border-t border-line pt-4">
-				<span className="text-h3 font-medium text-ink">
-					{ride.pricePerSeat.toLocaleString('pt-PT')} Kz
-					<span className="text-body font-normal text-muted">
-						{' '}
-						por lugar
+			<footer className="mt-5 border-t border-line pt-4">
+				<div className="flex items-baseline justify-between gap-3">
+					<span className="text-h3 font-medium text-ink">
+						{ride.pricePerSeat.toLocaleString('pt-PT')} Kz
+						<span className="text-body font-normal text-muted">
+							{' '}
+							por lugar
+						</span>
 					</span>
-				</span>
-				<span className="font-mono text-data text-muted">
-					{durationBetween(ride.departureAt, ride.arrivalAt)}
-				</span>
+					<span className="font-mono text-data text-muted">
+						{durationBetween(ride.departureAt, ride.arrivalAt)}
+					</span>
+				</div>
+
+				{/*
+				 * O cartão da home é de decisão, não de vitrina: um pedido
+				 * passa pela página do detalhe, que explica o percurso e
+				 * pede a conta se não houver. "Reservar" leva lá — é o
+				 * mesmo cartão que quem já entrou clica, com o mesmo
+				 * vocabulário.
+				 */}
+				<Link
+					to={`/viagens/${ride.id}`}
+					className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-brand px-3 py-2 text-label font-medium text-brand-ink transition-colors hover:bg-brand/90"
+				>
+					Reservar
+					<ArrowRight size={15} aria-hidden="true" />
+				</Link>
 			</footer>
 		</article>
 	);

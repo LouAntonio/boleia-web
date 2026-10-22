@@ -1,5 +1,6 @@
 import { createAuthClient } from 'better-auth/react';
 import { inferAdditionalFields } from 'better-auth/client/plugins';
+import { magicLinkClient } from 'better-auth/client/plugins';
 import { isAppRole } from '../stores/useAuthStore';
 import type { AppRole, SessionUser } from '../types/api';
 
@@ -36,6 +37,13 @@ export const authClient = createAuthClient({
 				surname: { type: 'string', required: false },
 			},
 		}),
+		/*
+		 * O link mágico é o modo de entrar sem senha: `signIn.magicLink`
+		 * despoja o email e o servidor manda um link que, aberto, cria a
+		 * sessão. O cliente precisa do plugin para o endpoint `/magic-link`
+		 * fazer batência com o `magicLink()` do servidor.
+		 */
+		magicLinkClient(),
 	],
 });
 

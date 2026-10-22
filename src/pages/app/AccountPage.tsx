@@ -14,6 +14,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { Button } from '../../components/ui/Button';
 import { Field } from '../../components/ui/Field';
 import { Card } from '../../components/ui/Card';
+import { PhoneChangeCard } from '../../components/app/PhoneChangeCard';
 
 /**
  * Conta e segurança.
@@ -201,6 +202,9 @@ export function AccountPage() {
 					As tuas credenciais e as sessões abertas da tua conta.
 				</p>
 			</header>
+
+			{/* ---------------- Número de telefone ---------------- */}
+			<PhoneChangeCard />
 
 			{/* ---------------- Email ---------------- */}
 			<Card className="p-6">

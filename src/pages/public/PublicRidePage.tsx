@@ -22,10 +22,13 @@ import {
 	durationBetween,
 	fmtKz,
 	fmtLongDate,
+	fullName,
 	hhmm,
+	initials,
 	rideScopeLabel,
 	seatsLeft,
 } from '../../lib/format';
+import type { RidePassenger } from '../../types/api';
 
 /**
  * A página de uma boleia partilhada.
@@ -206,12 +209,33 @@ export function PublicRidePage() {
 								aria-hidden="true"
 								className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-soft text-brand-text"
 							>
-								<User size={19} />
+								{ride.driver ? (
+									<span className="text-label font-medium">
+										{initials(
+											ride.driver.name,
+											ride.driver.surname,
+										)}
+									</span>
+								) : (
+									<User size={19} />
+								)}
 							</span>
-							<div>
-								<p className="text-body text-ink">
-									{ride.driverName ?? 'Motorista'}
-								</p>
+							<div className="min-w-0">
+								{ride.driver ? (
+									<p className="text-body text-ink">
+										<Link
+											to={`/pessoas/${ride.driver.id}`}
+											className="rounded-sm underline-offset-4 hover:underline"
+										>
+											{fullName(
+												ride.driver.name,
+												ride.driver.surname,
+											)}
+										</Link>
+									</p>
+								) : (
+									<p className="text-body text-ink">Motorista</p>
+								)}
 								<p className="text-small text-muted">
 									{ride.vehicle
 										? `${ride.vehicle.make} ${ride.vehicle.model} · ${ride.vehicle.color}`
@@ -219,6 +243,10 @@ export function PublicRidePage() {
 								</p>
 							</div>
 						</div>
+
+						{ride.passengers.length > 0 ? (
+							<WhoIsComing passengers={ride.passengers} />
+						) : null}
 
 						{ride.vehicle ? (
 							<div className="mt-6 flex items-center gap-3 border-t border-line pt-5">
@@ -300,6 +328,52 @@ export function PublicRidePage() {
 					</p>
 				</Card>
 			</div>
+		</div>
+	);
+}
+
+/**
+ * As pessoas confirmadas, com link para o perfil público.
+ *
+ * Uma reserva confirmada de dois lugares é uma pessoa que vai — não duas
+ * entradas no ecrã. O `seats` que o backend manda aparece só quando é mais
+ * do que um, no formato que a pessoa lê: "2 lugares".
+ *
+ * Nome completo e link: é isto que torna o carro reconhecível antes de
+ * pagar. Sem o link, um nome num cartão é meia página de telefone falsa.
+ */
+function WhoIsComing({ passengers }: { passengers: RidePassenger[] }) {
+	const heading =
+		passengers.length === 1
+			? 'Quem já vai'
+			: `Quem já vai (${passengers.length})`;
+
+	return (
+		<div className="mt-6 border-t border-line pt-5">
+			<h3 className="text-label font-medium text-ink">{heading}</h3>
+			<ul className="mt-3 flex flex-col gap-3">
+				{passengers.map((person) => (
+					<li key={person.id} className="flex items-center gap-3">
+						<span
+							aria-hidden="true"
+							className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-canvas text-small font-medium text-muted"
+						>
+							{initials(person.name, person.surname)}
+						</span>
+						<Link
+							to={`/pessoas/${person.id}`}
+							className="min-w-0 flex-1 truncate rounded-sm text-body text-ink underline-offset-4 hover:underline"
+						>
+							{fullName(person.name, person.surname)}
+						</Link>
+						{person.seats > 1 ? (
+							<span className="shrink-0 text-small text-muted">
+								{person.seats} lugares
+							</span>
+						) : null}
+					</li>
+				))}
+			</ul>
 		</div>
 	);
 }

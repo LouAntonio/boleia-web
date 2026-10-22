@@ -19,6 +19,17 @@ export function initials(name: string, surname?: string | null): string {
 	return `${first}${last}`.toUpperCase();
 }
 
+/**
+ * Nome completo de uma pessoa, com o apelido a faltar quando não há.
+ *
+ * O backend guarda `name` obrigatório e `surname` opcional; juntar os dois
+ * com `+` e cair no caso `null` é o tipo de coisa que se reescreve mal três
+ * vezes no mesmo ficheiro. Um formatador por tudo: "Lourenço António".
+ */
+export function fullName(name: string, surname?: string | null): string {
+	return [name.trim(), (surname ?? '').trim()].filter(Boolean).join(' ');
+}
+
 /** 8500 -> "8 500 Kz". O símbolo fica longe do número. */
 export function fmtKz(value: number): string {
 	const rounded = Math.round(value);

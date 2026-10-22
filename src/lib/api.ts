@@ -21,6 +21,7 @@ import type {
 	NotificationPage,
 	Paged,
 	PaymentMethod,
+	PublicPerson,
 	PublicRide,
 	PublicRideDetail,
 	Ride,
@@ -103,6 +104,39 @@ export async function unlinkGoogle(): Promise<{ status: true }> {
 	return data;
 }
 
+/* ---------- Troca de número ---------- */
+
+/**
+ * Pede o código para trocar o número de telefone.
+ *
+ * O WhatsApp vai para o número **novo** — a pessoa tem de provar que o
+ * recebe, ou qualquer erro de escrita deixaria a conta noutra pessoa. O
+ * `otp` só existe quando o backend está com o preview ligado (muleta
+ * temporária enquanto o WAME não entrega) — o ecrã mostra-o num toast se
+ * vier, e não faz nada se não vier.
+ */
+export async function requestPhoneChange(
+	phone: string,
+): Promise<{ status: true; phone: string; otp?: string }> {
+	const { data } = await apiClient.post<{
+		status: true;
+		phone: string;
+		otp?: string;
+	}>('/api/account/phone/request', { phone });
+	return data;
+}
+
+/** Confirma o código e grava o número novo. As outras sessões caem. */
+export async function confirmPhoneChange(
+	code: string,
+): Promise<{ status: true; phone: string }> {
+	const { data } = await apiClient.post<{ status: true; phone: string }>(
+		'/api/account/phone/confirm',
+		{ code },
+	);
+	return data;
+}
+
 /**
  * Uma sessão activa, tal como o `list-sessions` do better-auth a devolve.
  *
@@ -180,16 +214,38 @@ export interface ListRidesQuery {
 }
 
 /**
- * Corridas com lugares livres, para a listagem pública da landing.
+ * Corridas agendadas com lugares livres (rota pública), paginadas.
  *
- * Devolve o array puro como `/api/rides`. Se um dia a rota vier a responder com
- * outro formato, esta função é o único sítio a corrigir.
+ * O backend devolve o array puro e põe o total em `X-Total-Count`. O CORS
+ * expõe esse cabeçalho — se for retirado do backend, o site perde a contagem
+ * e passa a mostrar só a primeira página sem o dizer.
  */
 export async function listPublicRides(limit = 6): Promise<PublicRide[]> {
 	const { data } = await apiClient.get<PublicRide[]>('/api/rides/public', {
 		params: { limit },
 	});
 	return Array.isArray(data) ? data : [];
+}
+
+/**
+ * Pesquisa pública da página `/boleias`, sem sessão.
+ *
+ * Os filtros são os mesmos de `listRides` — o backend reusa o mesmo SQL — mas
+ * a projecção é a da landing: nada de motorista nem viatura. O total vem no
+ * cabeçalho, à imagem de `listRides`, para a paginação "carregar mais" saber
+ * se ainda vale a pena mostrar o botão.
+ */
+export async function searchPublicRides(
+	query: ListRidesQuery & { scope?: RideScope } = {},
+): Promise<{ rows: PublicRide[]; total: number }> {
+	const response = await apiClient.get<PublicRide[]>('/api/rides/public/search', {
+		params: { ...query },
+	});
+	const total = Number(response.headers['x-total-count'] ?? 0);
+	return {
+		rows: Array.isArray(response.data) ? response.data : [],
+		total: Number.isFinite(total) ? total : response.data.length,
+	};
 }
 
 /**
@@ -215,6 +271,18 @@ export async function listRides(
 
 export async function fetchRide(id: string): Promise<Ride> {
 	const { data } = await apiClient.get<Ride>(`/api/rides/${id}`);
+	return data;
+}
+
+/**
+ * Perfil público de quem vai numa boleia.
+ *
+ * Sem sessão: os cartões "Quem vai" ligam-se para aqui a partir do link
+ * partilhado também. O backend devolve 404 para conta apagada, anonimizada
+ * ou banida — e o 404 é a mensagem, não um erro a esconder.
+ */
+export async function fetchPublicPerson(id: string): Promise<PublicPerson> {
+	const { data } = await apiClient.get<PublicPerson>(`/api/people/${id}`);
 	return data;
 }
 
