@@ -46,7 +46,14 @@ export function SignInPage() {
 	const callbackURL = `${window.location.origin}${back ?? '/app'}`;
 
 	return (
-		<AuthShell title="Entrar" subtitle="Com o telemóvel com que te registaste.">
+		<AuthShell
+			title="Entrar"
+			subtitle={
+				mode === 'email'
+					? 'Recebemos-te por email. Manda o link e abre-o para entrares.'
+					: 'Com o telemóvel com que te registaste.'
+			}
+		>
 			{mode === 'email' ? (
 				<MagicLinkPanel
 					callbackURL={callbackURL}
